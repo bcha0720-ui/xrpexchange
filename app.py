@@ -333,25 +333,35 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    # Custom CSS
+    # Custom CSS - works with both light and dark themes
     st.markdown("""
         <style>
-        .metric-card {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            padding: 20px;
-            border-radius: 10px;
-            border: 1px solid #0f3460;
-        }
-        .big-number {
-            font-size: 2.5rem;
-            font-weight: bold;
-            color: #00d4ff;
-        }
-        .stMetric {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        /* Metric cards styling */
+        [data-testid="stMetric"] {
+            background-color: #f0f2f6;
             padding: 15px;
             border-radius: 10px;
-            border: 1px solid #0f3460;
+            border: 1px solid #e0e0e0;
+        }
+        [data-testid="stMetric"] label {
+            color: #555 !important;
+        }
+        [data-testid="stMetric"] [data-testid="stMetricValue"] {
+            color: #1f77b4 !important;
+            font-size: 1.8rem !important;
+        }
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            [data-testid="stMetric"] {
+                background-color: #262730;
+                border: 1px solid #3d3d3d;
+            }
+            [data-testid="stMetric"] label {
+                color: #fafafa !important;
+            }
+            [data-testid="stMetric"] [data-testid="stMetricValue"] {
+                color: #00d4ff !important;
+            }
         }
         </style>
     """, unsafe_allow_html=True)
