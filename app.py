@@ -657,8 +657,7 @@ def main():
     # Get XRP price
     xrp_data = get_xrp_price()
     
-    # Price and X Army widgets
-    price_html = ""
+    # Price widget - always show, with fallback
     if xrp_data["price"]:
         change_class = "positive" if xrp_data["change_24h"] >= 0 else "negative"
         change_sign = "+" if xrp_data["change_24h"] >= 0 else ""
@@ -669,7 +668,16 @@ def main():
             <div class="price-change {change_class}">{change_sign}{xrp_data["change_24h"]:.2f}% (24h)</div>
         </div>
         '''
+    else:
+        price_html = '''
+        <div class="xrp-price-widget">
+            <div class="price-label">XRP PRICE</div>
+            <div class="price-value">Loading...</div>
+            <div class="price-change">--</div>
+        </div>
+        '''
     
+    # Header widgets
     st.markdown(f'''
         <div class="header-widgets">
             {price_html}
@@ -681,44 +689,137 @@ def main():
                 </div>
             </a>
         </div>
-        
-        <!-- X Follow Popup HTML -->
-        <div class="popup-overlay" id="xPopup">
-            <div class="popup-content">
-                <div class="x-icon">𝕏</div>
-                <div class="popup-headline">🚀 Join the XRP Army!</div>
-                <div class="popup-subtext">Stay updated with the latest XRP insights, analysis, and alpha</div>
-                <a href="https://twitter.com/chachakobe4er" target="_blank" class="follow-btn">
-                    ✨ Follow @chachakobe4er ✨
-                </a>
-                <br>
-                <button class="dismiss-btn" onclick="document.getElementById('xPopup').classList.remove('show');">❌ Maybe later</button>
-            </div>
-        </div>
-        
-        <script>
-            // Show popup after 5 seconds
-            setTimeout(function() {{
-                var popup = document.getElementById('xPopup');
-                if (popup && !sessionStorage.getItem('xrpPopupDismissed')) {{
-                    popup.classList.add('show');
-                }}
-            }}, 5000);
-            
-            // Close popup and remember
-            document.querySelector('.dismiss-btn').addEventListener('click', function() {{
-                sessionStorage.setItem('xrpPopupDismissed', 'true');
-            }});
-            
-            // Close on overlay click
-            document.getElementById('xPopup').addEventListener('click', function(e) {{
-                if (e.target === this) {{
-                    this.classList.remove('show');
-                    sessionStorage.setItem('xrpPopupDismissed', 'true');
-                }}
-            }});
-        </script>
     ''', unsafe_allow_html=True)
+    
+    # Popup using components.html (JavaScript works here)
+    import streamlit.components.v1 as components
+    
+    popup_html = '''
+    <style>
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 999999;
+        }
+        .popup-overlay.show {
+            display: flex !important;
+        }
+        .popup-content {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            max-width: 400px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(29, 161, 242, 0.3);
+            border: 2px solid rgba(29, 161, 242, 0.3);
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes popIn {
+            from { transform: scale(0.7); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .x-icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+            display: inline-block;
+            animation: bounce 1s ease infinite;
+        }
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-20px); }
+            60% { transform: translateY(-10px); }
+        }
+        .popup-headline {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        .popup-subtext {
+            color: #a0a0a0;
+            font-size: 14px;
+            margin-bottom: 25px;
+        }
+        .follow-btn {
+            background: linear-gradient(45deg, #1da1f2, #0d8ecf);
+            color: white !important;
+            border: none;
+            padding: 15px 35px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            text-decoration: none !important;
+            display: inline-block;
+            margin-bottom: 15px;
+            box-shadow: 0 0 20px rgba(29, 161, 242, 0.5);
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+        @keyframes glow {
+            from { box-shadow: 0 0 20px rgba(29, 161, 242, 0.5); }
+            to { box-shadow: 0 0 40px rgba(29, 161, 242, 0.8); }
+        }
+        .dismiss-btn {
+            background: transparent;
+            color: #888;
+            border: none;
+            padding: 10px 20px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .dismiss-btn:hover { color: #bbb; }
+    </style>
+    
+    <div class="popup-overlay" id="xPopup">
+        <div class="popup-content">
+            <div class="x-icon">𝕏</div>
+            <div class="popup-headline">🚀 Join the XRP Army!</div>
+            <div class="popup-subtext">Stay updated with the latest XRP insights, analysis, and alpha</div>
+            <a href="https://twitter.com/chachakobe4er" target="_blank" class="follow-btn">
+                ✨ Follow @chachakobe4er ✨
+            </a>
+            <br>
+            <button class="dismiss-btn" id="dismissBtn">❌ Maybe later</button>
+        </div>
+    </div>
+    
+    <script>
+        (function() {
+            var popup = document.getElementById('xPopup');
+            var dismissBtn = document.getElementById('dismissBtn');
+            
+            // Check if already dismissed
+            if (!sessionStorage.getItem('xrpPopupShown')) {
+                setTimeout(function() {
+                    popup.classList.add('show');
+                }, 5000);
+            }
+            
+            // Dismiss button
+            dismissBtn.onclick = function() {
+                popup.classList.remove('show');
+                sessionStorage.setItem('xrpPopupShown', 'true');
+            };
+            
+            // Click outside to close
+            popup.onclick = function(e) {
+                if (e.target === popup) {
+                    popup.classList.remove('show');
+                    sessionStorage.setItem('xrpPopupShown', 'true');
+                }
+            };
+        })();
+    </script>
+    '''
+    
+    components.html(popup_html, height=0)
     
     st.markdown(f"Real-time tracking of XRP holdings | **Historical benchmark: {HISTORICAL_DATE}**")
     
