@@ -17,6 +17,32 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 import json
 
+# ============================================================================
+# VISITOR TRACKING
+# ============================================================================
+
+def get_visitor_count():
+    """Get and increment visitor count using a simple file-based counter"""
+    count_file = "visitor_count.txt"
+    try:
+        # Try to read existing count
+        with open(count_file, "r") as f:
+            count = int(f.read().strip())
+    except:
+        count = 0
+    
+    # Increment for new session
+    if 'counted' not in st.session_state:
+        st.session_state.counted = True
+        count += 1
+        try:
+            with open(count_file, "w") as f:
+                f.write(str(count))
+        except:
+            pass
+    
+    return count
+
 # Suppress urllib3 warnings
 urllib3.disable_warnings()
 
@@ -761,6 +787,49 @@ def main():
             color: #888;
             font-size: 12px;
         }}
+        .etf-widget {{
+            background: linear-gradient(135deg, #0a2e1a 0%, #1a4a2e 100%);
+            border: 1px solid #00c853;
+            border-radius: 12px;
+            padding: 12px 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }}
+        .etf-widget:hover {{
+            border-color: #00e676;
+            box-shadow: 0 0 15px rgba(0, 200, 83, 0.3);
+            transform: translateY(-2px);
+        }}
+        .etf-icon {{
+            background: #00c853;
+            color: #000;
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+        }}
+        .etf-text {{
+            display: flex;
+            flex-direction: column;
+        }}
+        .etf-title {{
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 600;
+        }}
+        .etf-title span {{ color: #00c853; }}
+        .etf-sub {{
+            color: #888;
+            font-size: 12px;
+        }}
     </style>
     <div class="header-widgets">
         {price_html}
@@ -771,140 +840,114 @@ def main():
                 <div class="x-army-handle">@chachakobe4er</div>
             </div>
         </a>
+        <a href="https://xrp-1-0jnc.onrender.com/" target="_blank" class="etf-widget">
+            <div class="etf-icon">ETF</div>
+            <div class="etf-text">
+                <div class="etf-title">XRP <span>ETF</span> Tracker</div>
+                <div class="etf-sub">Track XRP ETF Filings</div>
+            </div>
+        </a>
     </div>
     '''
     
-    components.html(header_html, height=100)
+    components.html(header_html, height=140)
     
-    # Popup using components.html (JavaScript works here)
-    popup_html = '''
-    <style>
-        .popup-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: rgba(0, 0, 0, 0.85);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 999999;
-        }
-        .popup-overlay.show {
-            display: flex !important;
-        }
-        .popup-content {
+    # Google Analytics tracking
+    GA_TRACKING_ID = "G-3EVLLY6ND7"  # Google Analytics 4 Measurement ID
+    
+    analytics_html = f'''
+    <!-- Google Analytics 4 -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id={GA_TRACKING_ID}"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){{dataLayer.push(arguments);}}
+        gtag('js', new Date());
+        gtag('config', '{GA_TRACKING_ID}');
+    </script>
+    '''
+    components.html(analytics_html, height=0)
+    
+    st.markdown(f"Real-time tracking of XRP holdings | **Historical benchmark: {HISTORICAL_DATE}**")
+    
+    # Twitter Follow Popup
+    if 'popup_closed' not in st.session_state:
+        st.session_state.popup_closed = False
+    
+    if not st.session_state.popup_closed:
+        st.markdown("""
+        <style>
+        .popup-box {
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             border-radius: 20px;
-            padding: 40px;
+            padding: 30px;
             text-align: center;
+            border: 2px solid rgba(29, 161, 242, 0.5);
+            box-shadow: 0 0 40px rgba(29, 161, 242, 0.3);
             max-width: 400px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(29, 161, 242, 0.3);
-            border: 2px solid rgba(29, 161, 242, 0.3);
-            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            margin: 20px auto;
         }
-        @keyframes popIn {
-            from { transform: scale(0.7); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
-        }
-        .x-icon {
-            font-size: 60px;
-            margin-bottom: 20px;
-            display: inline-block;
+        .popup-x-icon {
+            font-size: 50px;
+            background: #fff;
+            color: #000;
+            width: 70px;
+            height: 70px;
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 15px;
             animation: bounce 1s ease infinite;
         }
         @keyframes bounce {
             0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-            40% { transform: translateY(-20px); }
-            60% { transform: translateY(-10px); }
+            40% { transform: translateY(-15px); }
+            60% { transform: translateY(-8px); }
         }
-        .popup-headline {
-            color: #ffffff;
-            font-size: 28px;
+        .popup-title {
+            color: #fff;
+            font-size: 24px;
             font-weight: bold;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
         }
-        .popup-subtext {
-            color: #a0a0a0;
+        .popup-sub {
+            color: #aaa;
             font-size: 14px;
-            margin-bottom: 25px;
+            margin-bottom: 20px;
         }
-        .follow-btn {
+        .glow-btn {
             background: linear-gradient(45deg, #1da1f2, #0d8ecf);
             color: white !important;
-            border: none;
             padding: 15px 35px;
-            font-size: 18px;
+            font-size: 16px;
             font-weight: bold;
             border-radius: 50px;
-            cursor: pointer;
-            text-decoration: none !important;
+            text-decoration: none;
             display: inline-block;
-            margin-bottom: 15px;
-            box-shadow: 0 0 20px rgba(29, 161, 242, 0.5);
+            box-shadow: 0 0 20px rgba(29, 161, 242, 0.6);
             animation: glow 2s ease-in-out infinite alternate;
         }
         @keyframes glow {
             from { box-shadow: 0 0 20px rgba(29, 161, 242, 0.5); }
-            to { box-shadow: 0 0 40px rgba(29, 161, 242, 0.8); }
+            to { box-shadow: 0 0 40px rgba(29, 161, 242, 0.9); }
         }
-        .dismiss-btn {
-            background: transparent;
-            color: #888;
-            border: none;
-            padding: 10px 20px;
-            font-size: 14px;
-            cursor: pointer;
-        }
-        .dismiss-btn:hover { color: #bbb; }
-    </style>
-    
-    <div class="popup-overlay" id="xPopup">
-        <div class="popup-content">
-            <div class="x-icon">𝕏</div>
-            <div class="popup-headline">🚀 Join the XRP Army!</div>
-            <div class="popup-subtext">Stay updated with the latest XRP insights, analysis, and alpha</div>
-            <a href="https://twitter.com/chachakobe4er" target="_blank" class="follow-btn">
+        </style>
+        
+        <div class="popup-box">
+            <div class="popup-x-icon">𝕏</div>
+            <div class="popup-title">🚀 Join the XRP Army!</div>
+            <div class="popup-sub">Stay updated with the latest XRP insights & alpha</div>
+            <a href="https://twitter.com/chachakobe4er" target="_blank" class="glow-btn">
                 ✨ Follow @chachakobe4er ✨
             </a>
-            <br>
-            <button class="dismiss-btn" id="dismissBtn">❌ Maybe later</button>
         </div>
-    </div>
-    
-    <script>
-        (function() {
-            var popup = document.getElementById('xPopup');
-            var dismissBtn = document.getElementById('dismissBtn');
-            
-            // Check if already dismissed
-            if (!sessionStorage.getItem('xrpPopupShown')) {
-                setTimeout(function() {
-                    popup.classList.add('show');
-                }, 5000);
-            }
-            
-            // Dismiss button
-            dismissBtn.onclick = function() {
-                popup.classList.remove('show');
-                sessionStorage.setItem('xrpPopupShown', 'true');
-            };
-            
-            // Click outside to close
-            popup.onclick = function(e) {
-                if (e.target === popup) {
-                    popup.classList.remove('show');
-                    sessionStorage.setItem('xrpPopupShown', 'true');
-                }
-            };
-        })();
-    </script>
-    '''
-    
-    components.html(popup_html, height=0)
-    
-    st.markdown(f"Real-time tracking of XRP holdings | **Historical benchmark: {HISTORICAL_DATE}**")
+        """, unsafe_allow_html=True)
+        
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            if st.button("❌ Maybe later", use_container_width=True, key="dismiss_popup"):
+                st.session_state.popup_closed = True
+                st.rerun()
     
     # Sidebar
     with st.sidebar:
@@ -936,6 +979,35 @@ def main():
         st.markdown("---")
         st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         st.caption(f"Historical benchmark: {HISTORICAL_DATE}")
+        
+        # Visitor counter
+        st.markdown("---")
+        visitor_count = get_visitor_count()
+        st.markdown(f"""
+            <div style="text-align: center; padding: 10px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 10px; border: 1px solid #00d4ff;">
+                <div style="color: #00d4ff; font-size: 11px; letter-spacing: 1px;">👥 VISITORS</div>
+                <div style="color: #fff; font-size: 24px; font-weight: bold;">{visitor_count:,}</div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    # Add analytics tracking (GoatCounter - free, privacy-friendly)
+    components.html("""
+        <script>
+            // Simple page view tracking
+            (function() {
+                var sessionKey = 'xrp_dashboard_session';
+                if (!sessionStorage.getItem(sessionKey)) {
+                    sessionStorage.setItem(sessionKey, 'true');
+                    // Log visit (you can replace with your own analytics endpoint)
+                    console.log('New visitor session');
+                }
+            })();
+        </script>
+        
+        <!-- Optional: Add GoatCounter for free analytics -->
+        <!-- Uncomment and replace 'yoursite' with your GoatCounter site name -->
+        <!-- <script data-goatcounter="https://yoursite.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script> -->
+    """, height=0)
     
     if not selected_exchanges:
         st.warning("Please select at least one exchange from the sidebar.")
