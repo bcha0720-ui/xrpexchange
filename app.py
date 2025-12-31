@@ -426,7 +426,7 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    # Custom CSS
+    # Custom CSS + Twitter/X Follow Popup
     st.markdown("""
         <style>
         [data-testid="stMetric"] {
@@ -448,7 +448,168 @@ def main():
             [data-testid="stMetric"] label { color: #fafafa !important; }
             [data-testid="stMetric"] [data-testid="stMetricValue"] { color: #00d4ff !important; }
         }
+        
+        /* X Follow Popup Styles */
+        .popup-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .popup-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        .popup-content {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            max-width: 400px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(29, 161, 242, 0.3);
+            transform: scale(0.7);
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: 2px solid rgba(29, 161, 242, 0.3);
+        }
+        .popup-overlay.show .popup-content {
+            transform: scale(1);
+        }
+        
+        /* Bouncing X Icon */
+        .x-icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+            display: inline-block;
+            animation: bounce 1s ease infinite;
+        }
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-20px); }
+            60% { transform: translateY(-10px); }
+        }
+        
+        .popup-headline {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-shadow: 0 0 20px rgba(29, 161, 242, 0.5);
+        }
+        .popup-subtext {
+            color: #a0a0a0;
+            font-size: 14px;
+            margin-bottom: 25px;
+        }
+        
+        /* Glowing Follow Button */
+        .follow-btn {
+            background: linear-gradient(45deg, #1da1f2, #0d8ecf);
+            color: white;
+            border: none;
+            padding: 15px 35px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 20px rgba(29, 161, 242, 0.5), 0 0 40px rgba(29, 161, 242, 0.3);
+            animation: glow 2s ease-in-out infinite alternate;
+        }
+        @keyframes glow {
+            from { box-shadow: 0 0 20px rgba(29, 161, 242, 0.5), 0 0 40px rgba(29, 161, 242, 0.3); }
+            to { box-shadow: 0 0 30px rgba(29, 161, 242, 0.8), 0 0 60px rgba(29, 161, 242, 0.5); }
+        }
+        .follow-btn:hover {
+            transform: scale(1.05);
+            background: linear-gradient(45deg, #0d8ecf, #1da1f2);
+        }
+        
+        /* Dismiss Button */
+        .dismiss-btn {
+            background: transparent;
+            color: #666;
+            border: none;
+            padding: 10px 20px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+        .dismiss-btn:hover {
+            color: #999;
+        }
+        
+        /* Sparkle effects */
+        .sparkles {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        .sparkle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #1da1f2;
+            border-radius: 50%;
+            animation: sparkle 2s ease-in-out infinite;
+        }
+        @keyframes sparkle {
+            0%, 100% { opacity: 0; transform: scale(0); }
+            50% { opacity: 1; transform: scale(1); }
+        }
         </style>
+        
+        <!-- X Follow Popup HTML -->
+        <div class="popup-overlay" id="xPopup">
+            <div class="popup-content">
+                <div class="x-icon">🅧</div>
+                <div class="popup-headline">🚀 Join the XRP Army!</div>
+                <div class="popup-subtext">Stay updated with the latest XRP insights, analysis, and alpha</div>
+                <a href="https://twitter.com/chachakobe4er" target="_blank" class="follow-btn">
+                    ✨ Follow @chachakobe4er ✨
+                </a>
+                <br>
+                <button class="dismiss-btn" onclick="closePopup()">❌ Maybe later</button>
+            </div>
+        </div>
+        
+        <script>
+            // Show popup after 5 seconds
+            setTimeout(function() {
+                var popup = document.getElementById('xPopup');
+                if (popup && !sessionStorage.getItem('popupDismissed')) {
+                    popup.classList.add('show');
+                }
+            }, 5000);
+            
+            // Close popup function
+            function closePopup() {
+                var popup = document.getElementById('xPopup');
+                if (popup) {
+                    popup.classList.remove('show');
+                    sessionStorage.setItem('popupDismissed', 'true');
+                }
+            }
+            
+            // Close on overlay click
+            document.addEventListener('click', function(e) {
+                if (e.target.classList.contains('popup-overlay')) {
+                    closePopup();
+                }
+            });
+        </script>
     """, unsafe_allow_html=True)
     
     # Header
