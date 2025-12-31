@@ -737,18 +737,20 @@ def main():
             </a>
         ''', unsafe_allow_html=True)
     
-    # Google Analytics tracking
+    # Google Analytics tracking - inject into page head
     GA_TRACKING_ID = "G-3EVLLY6ND7"
     
-    components.html(f'''
+    st.markdown(f'''
+        <!-- Google Analytics 4 -->
         <script async src="https://www.googletagmanager.com/gtag/js?id={GA_TRACKING_ID}"></script>
         <script>
             window.dataLayer = window.dataLayer || [];
             function gtag(){{dataLayer.push(arguments);}}
             gtag('js', new Date());
             gtag('config', '{GA_TRACKING_ID}');
+            console.log('GA4 loaded: {GA_TRACKING_ID}');
         </script>
-    ''', height=0)
+    ''', unsafe_allow_html=True)
     
     st.markdown(f"Real-time tracking of XRP holdings | **Historical benchmark: {HISTORICAL_DATE}**")
     
