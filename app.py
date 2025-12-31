@@ -774,7 +774,7 @@ def main():
     </div>
     '''
     
-    components.html(header_html, height=100)
+    components.html(header_html, height=120)
     
     # Popup using components.html (JavaScript works here)
     popup_html = '''
