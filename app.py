@@ -414,6 +414,26 @@ def create_summary_dataframe(data: Dict) -> pd.DataFrame:
     return df
 
 
+@st.cache_data(ttl=60)  # Cache price for 1 minute
+def get_xrp_price():
+    """Fetch current XRP price from CoinGecko API"""
+    try:
+        response = requests.get(
+            "https://api.coingecko.com/api/v3/simple/price",
+            params={"ids": "ripple", "vs_currencies": "usd", "include_24hr_change": "true"},
+            timeout=10
+        )
+        if response.status_code == 200:
+            data = response.json()
+            return {
+                "price": data["ripple"]["usd"],
+                "change_24h": data["ripple"]["usd_24h_change"]
+            }
+    except:
+        pass
+    return {"price": None, "change_24h": None}
+
+
 # ============================================================================
 # STREAMLIT APP
 # ============================================================================
@@ -449,6 +469,89 @@ def main():
             [data-testid="stMetric"] [data-testid="stMetricValue"] { color: #00d4ff !important; }
         }
         
+        /* Header widgets container */
+        .header-widgets {
+            display: flex;
+            gap: 15px;
+            margin: 10px 0 20px 0;
+            flex-wrap: wrap;
+        }
+        
+        /* XRP Price Widget */
+        .xrp-price-widget {
+            background: linear-gradient(135deg, #0a1628 0%, #1a2940 100%);
+            border: 1px solid #00d4ff;
+            border-radius: 12px;
+            padding: 15px 25px;
+            display: inline-flex;
+            flex-direction: column;
+            align-items: flex-start;
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.2);
+        }
+        .price-label {
+            color: #00d4ff;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+        .price-value {
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .price-change {
+            font-size: 13px;
+            margin-top: 3px;
+        }
+        .price-change.positive { color: #00c853; }
+        .price-change.negative { color: #ff5252; }
+        
+        /* X Army Follow Widget */
+        .x-army-widget {
+            background: linear-gradient(135deg, #1a1a2e 0%, #232333 100%);
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 12px 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .x-army-widget:hover {
+            border-color: #1da1f2;
+            box-shadow: 0 0 15px rgba(29, 161, 242, 0.3);
+            transform: translateY(-2px);
+        }
+        .x-logo {
+            background: #ffffff;
+            color: #000000;
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        .x-army-text {
+            display: flex;
+            flex-direction: column;
+        }
+        .x-army-title {
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .x-army-title span { color: #00d4ff; }
+        .x-army-handle {
+            color: #888;
+            font-size: 12px;
+        }
+        
         /* X Follow Popup Styles */
         .popup-overlay {
             position: fixed;
@@ -456,18 +559,14 @@ def main():
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            display: flex;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
             justify-content: center;
             align-items: center;
-            z-index: 9999;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.3s ease, visibility 0.3s ease;
+            z-index: 999999;
         }
         .popup-overlay.show {
-            opacity: 1;
-            visibility: visible;
+            display: flex !important;
         }
         .popup-content {
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
@@ -476,12 +575,12 @@ def main():
             text-align: center;
             max-width: 400px;
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(29, 161, 242, 0.3);
-            transform: scale(0.7);
-            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             border: 2px solid rgba(29, 161, 242, 0.3);
+            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
-        .popup-overlay.show .popup-content {
-            transform: scale(1);
+        @keyframes popIn {
+            from { transform: scale(0.7); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
         }
         
         /* Bouncing X Icon */
@@ -513,14 +612,14 @@ def main():
         /* Glowing Follow Button */
         .follow-btn {
             background: linear-gradient(45deg, #1da1f2, #0d8ecf);
-            color: white;
+            color: white !important;
             border: none;
             padding: 15px 35px;
             font-size: 18px;
             font-weight: bold;
             border-radius: 50px;
             cursor: pointer;
-            text-decoration: none;
+            text-decoration: none !important;
             display: inline-block;
             margin-bottom: 15px;
             transition: all 0.3s ease;
@@ -549,71 +648,78 @@ def main():
         .dismiss-btn:hover {
             color: #999;
         }
-        
-        /* Sparkle effects */
-        .sparkles {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-        }
-        .sparkle {
-            position: absolute;
-            width: 10px;
-            height: 10px;
-            background: #1da1f2;
-            border-radius: 50%;
-            animation: sparkle 2s ease-in-out infinite;
-        }
-        @keyframes sparkle {
-            0%, 100% { opacity: 0; transform: scale(0); }
-            50% { opacity: 1; transform: scale(1); }
-        }
         </style>
+    """, unsafe_allow_html=True)
+    
+    # Header
+    st.title("💎 XRP Exchange Holdings Tracker")
+    
+    # Get XRP price
+    xrp_data = get_xrp_price()
+    
+    # Price and X Army widgets
+    price_html = ""
+    if xrp_data["price"]:
+        change_class = "positive" if xrp_data["change_24h"] >= 0 else "negative"
+        change_sign = "+" if xrp_data["change_24h"] >= 0 else ""
+        price_html = f'''
+        <div class="xrp-price-widget">
+            <div class="price-label">XRP PRICE</div>
+            <div class="price-value">${xrp_data["price"]:.4f}</div>
+            <div class="price-change {change_class}">{change_sign}{xrp_data["change_24h"]:.2f}% (24h)</div>
+        </div>
+        '''
+    
+    st.markdown(f'''
+        <div class="header-widgets">
+            {price_html}
+            <a href="https://twitter.com/chachakobe4er" target="_blank" class="x-army-widget">
+                <div class="x-logo">𝕏</div>
+                <div class="x-army-text">
+                    <div class="x-army-title">XRP <span>𝕏</span> Army</div>
+                    <div class="x-army-handle">@chachakobe4er</div>
+                </div>
+            </a>
+        </div>
         
         <!-- X Follow Popup HTML -->
         <div class="popup-overlay" id="xPopup">
             <div class="popup-content">
-                <div class="x-icon">🅧</div>
+                <div class="x-icon">𝕏</div>
                 <div class="popup-headline">🚀 Join the XRP Army!</div>
                 <div class="popup-subtext">Stay updated with the latest XRP insights, analysis, and alpha</div>
                 <a href="https://twitter.com/chachakobe4er" target="_blank" class="follow-btn">
                     ✨ Follow @chachakobe4er ✨
                 </a>
                 <br>
-                <button class="dismiss-btn" onclick="closePopup()">❌ Maybe later</button>
+                <button class="dismiss-btn" onclick="document.getElementById('xPopup').classList.remove('show');">❌ Maybe later</button>
             </div>
         </div>
         
         <script>
             // Show popup after 5 seconds
-            setTimeout(function() {
+            setTimeout(function() {{
                 var popup = document.getElementById('xPopup');
-                if (popup && !sessionStorage.getItem('popupDismissed')) {
+                if (popup && !sessionStorage.getItem('xrpPopupDismissed')) {{
                     popup.classList.add('show');
-                }
-            }, 5000);
+                }}
+            }}, 5000);
             
-            // Close popup function
-            function closePopup() {
-                var popup = document.getElementById('xPopup');
-                if (popup) {
-                    popup.classList.remove('show');
-                    sessionStorage.setItem('popupDismissed', 'true');
-                }
-            }
+            // Close popup and remember
+            document.querySelector('.dismiss-btn').addEventListener('click', function() {{
+                sessionStorage.setItem('xrpPopupDismissed', 'true');
+            }});
             
             // Close on overlay click
-            document.addEventListener('click', function(e) {
-                if (e.target.classList.contains('popup-overlay')) {
-                    closePopup();
-                }
-            });
+            document.getElementById('xPopup').addEventListener('click', function(e) {{
+                if (e.target === this) {{
+                    this.classList.remove('show');
+                    sessionStorage.setItem('xrpPopupDismissed', 'true');
+                }}
+            }});
         </script>
-    """, unsafe_allow_html=True)
+    ''', unsafe_allow_html=True)
     
-    # Header
-    st.title("💎 XRP Exchange Holdings Tracker")
     st.markdown(f"Real-time tracking of XRP holdings | **Historical benchmark: {HISTORICAL_DATE}**")
     
     # Sidebar
