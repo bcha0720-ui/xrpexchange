@@ -1,6 +1,7 @@
 """
 XRP Exchange Holdings Dashboard
 Interactive Streamlit dashboard for tracking XRP holdings across exchanges
+With historical comparison to February 24, 2025 benchmark
 """
 
 import streamlit as st
@@ -26,6 +27,59 @@ urllib3.disable_warnings()
 RIPPLED_URL = "https://s1.ripple.com:51234"
 MAX_RETRIES = 3
 REQUEST_TIMEOUT = 10
+
+# ============================================================================
+# HISTORICAL DATA - February 24, 2025 Benchmark
+# ============================================================================
+
+HISTORICAL_BALANCES_20250224 = {
+    # Upbit
+    "r38a3PtqW3M7LRESgaR4dyHjg3AxAmiZCt": 500000022.920354,  # Upbit15
+    "r4G689g4KePYLKkyyumM1iUppTP4nhZwVC": 500000023.954709,  # Upbit21
+    "rDxJNbV23mu9xsWoQHoBqZQvc77YcbJXwb": 980472688.335846,  # Upbit22
+    "rHHQeqjz2QyNj1DVoAbcvfaKLv7RxpHMNE": 427.863089,  # Upbit23
+    "rJWbw1u3oDDRcYLFqiWFjhGWRKVcBAWdgp": 500000022.940415,  # Upbit17
+    "rJo4m69u9Wd1F8fN2RbgAsJEF6a4hW1nSi": 500000022.974330,  # Upbit19
+    "rLgn612WAgRoZ285YmsQ4t7kb8Ui3csdoU": 500000022.970497,  # Upbit20
+    "rMNUAfSz2spLEbaBwPnGtxTzZCajJifnzH": 500000022.930304,  # Upbit16
+    "rNcAdhSLXBrJ3aZUq22HaNtNEPpB5fR8Ri": 500000070.927547,  # Upbit14
+    "raQwCVAJVqjrVm1Nj5SFRcX8i22BhdC9WA": 5380330.943804,  # Upbit1
+    "rfL1mn4VTCoHdhHhHMwqpShCFUaDBRk6Z5": 500000113.144652,  # Upbit12
+    "rs48xReB6gjKtTnTfii93iwUhjhTJsW78B": 500000022.951598,  # Upbit18
+    "rwa7YXssGVAL9yPKw6QJtCen2UqZbRQqpM": 500000111.032735,  # Upbit13
+    # Binance
+    "r3ZVNKgkkT3A7hbEZ8HxnNnLDCCmZiZECV": 4319156.176484,  # Binance US 3
+    "rEb8TK3gBgk5auZkwc6sHnwrGVJH8DuaLh": 7375.223257,  # Binance 1
+    "rEeEWeP88cpKUddKk37B2EZeiHBGiBXY3": 122.800031,  # Binance US 1
+    "rMvYS27SYs5dXdFsUgpvv1CSrPsCz7ePF5": 219728.667554,  # Binance US 2
+    "rNU4eAowPuixS5ZCWaRL72UUeKgxcKExpK": 6152514.319652,  # Binance 10
+    "rNxp4h8apvRis6mJf9Sh8C6iRxfrDWN7AV": 268204.837425,  # Binance 11
+    "rPCpZwPKogNodbjRxGDnefVXu9Q9R4PN4Q": 593.363378,  # Binance US 4
+    "rPJ5GFpyDLv7gqeB1uZVUBwDwi41kaXN5A": 109917943.727643,  # Binance 12
+    "rPz2qA93PeRCyHyFCqyNggnyycJR1N4iNf": 661827727.919798,  # Binance 13
+    "rhWj9gaovwu2hZxYW7p388P8GRbuXFLQkK": 4831865.223177,  # Binance 14
+    # Kraken
+    "rGZjPjMkfhAqmc1ssEiT753uAgyftHRo2m": 20.251542,  # Kraken3
+    "rLHzPsX6oXkzU2qL12kHCH8G8cnZv1rBJh": 25860812.904039,  # Kraken1
+    "rUeDDFNp2q7Ymvyv75hFGC8DAcygVyJbNF": 265582363.149146,  # Kraken2
+    "rp7TCczQuQo61dUo1oAgwdpRxLrA8vDaNV": 290523350.512168,  # Kraken4
+    # Bybit
+    "rJn2zAPdFA193sixJwuFixRkYDUtx3apQh": 4653377.535326,  # Bybit 3
+    "rMrgNBrkE6FdCjWih5VAWkGMrmerrWpiZt": 9.757080,  # Bybit 1
+    "rMvCasZ9cohYrSZRNYPTZfoaaSUQMfgQ8G": 116576792.538589,  # Bybit 4
+    "rNFKfGBzMspdKfaZdpnEyhkFyw7C1mtQ8x": 20.965423,  # Bybit 2
+    "raQxZLtqurEXvH5sgijrif7yXMNwvFRkJN": 147378587.843680,  # Bybit 6
+    "rwBHqnCgNRnk3Kyoc6zon6Wt4Wujj3HNGe": 57941994.752545,  # Bybit 5
+    # SBI VC Trade
+    "r39uEuRjzLaSgvkjTfcejodbSrXLM3cYnX": 293.297424,  # SBI VC Trade 6
+    "rDDyH5nfvozKZQCwiBrWfcE528sWsBPWET": 2639.366730,  # SBI VC Trade 1
+    "rKcVYzVK1f4PhRFjLhWP7QmteG5FpPgRub": 36.929646,  # SBI VC Trade 2
+    "rNRc2S2GSefSkTkAiyjE6LDzMonpeHp6jS": 318277941.998112,  # SBI VC TRADE 4
+    "rUaESVd1yLMy5VyoJvwwuqE8ZiCb2PEqBR": 1123.897979,  # SBI VC Trade 3
+    "raSZXZApFg7Nj1B5G6BnhoL6HcTqVMopJ3": 79576.400141,  # SBI VC Trade 5
+}
+
+HISTORICAL_DATE = "Feb 24, 2025"
 
 # ============================================================================
 # EXCHANGE DEFINITIONS
@@ -248,75 +302,114 @@ def get_xrp_balance(address: str) -> float:
         for i in range(MAX_RETRIES):
             try:
                 response = requests.post(RIPPLED_URL, json=data, headers=headers, 
-                                       timeout=REQUEST_TIMEOUT, verify=False)
-                response.raise_for_status()
-                result = response.json()
-                
-                if "result" in result and "account_data" in result["result"]:
-                    return float(result["result"]["account_data"]["Balance"]) / 1e6
-                
-                if result.get("result", {}).get("error") == "actNotFound":
-                    return 0.0
+                                        timeout=REQUEST_TIMEOUT, verify=False)
+                if response.status_code == 200:
+                    result = response.json()
+                    if "result" in result and "account_data" in result["result"]:
+                        balance_drops = int(result["result"]["account_data"]["Balance"])
+                        return balance_drops / 1_000_000
                 break
-                
-            except requests.exceptions.RequestException as e:
+            except requests.exceptions.Timeout:
                 if i < MAX_RETRIES - 1:
-                    time.sleep(2 ** i)
-                else:
-                    raise
-        return 0.0
-        
-    except Exception as e:
-        return 0.0
+                    time.sleep(1)
+                continue
+            except Exception:
+                break
+    except Exception:
+        pass
+    return 0.0
 
 
-def fetch_all_balances(progress_callback=None) -> Dict[str, Dict]:
-    """Fetch balances for all exchanges"""
+def get_historical_balance(address: str) -> Optional[float]:
+    """Get historical balance from Feb 24, 2025 benchmark data"""
+    return HISTORICAL_BALANCES_20250224.get(address)
+
+
+def fetch_all_balances(progress_callback=None) -> Dict:
+    """Fetch balances for all exchanges with historical comparison"""
     results = {}
-    total_exchanges = len(EXCHANGES)
+    total_addresses = sum(len(wallets) for wallets in EXCHANGES.values())
+    current = 0
     
-    for idx, (exchange, wallets) in enumerate(EXCHANGES.items()):
-        exchange_total = 0.0
+    for exchange_name, wallets in EXCHANGES.items():
+        exchange_total = 0
+        exchange_historical = 0
         wallet_details = []
+        has_historical = False
         
-        for address, name in wallets.items():
+        for address, wallet_name in wallets.items():
             balance = get_xrp_balance(address)
+            historical = get_historical_balance(address)
+            
             exchange_total += balance
-            wallet_details.append({
+            
+            wallet_info = {
                 "address": address,
-                "name": name,
-                "balance": balance
-            })
+                "name": wallet_name,
+                "balance": balance,
+                "historical": historical
+            }
+            
+            if historical is not None:
+                exchange_historical += historical
+                has_historical = True
+                wallet_info["change"] = balance - historical
+                wallet_info["change_pct"] = ((balance - historical) / historical * 100) if historical > 0 else 0
+            
+            wallet_details.append(wallet_info)
+            
+            current += 1
+            if progress_callback:
+                progress_callback(current / total_addresses)
         
-        results[exchange] = {
+        results[exchange_name] = {
             "total": exchange_total,
+            "historical": exchange_historical if has_historical else None,
             "wallets": wallet_details,
-            "wallet_count": len(wallets)
+            "wallet_count": len(wallets),
+            "has_historical": has_historical
         }
         
-        if progress_callback:
-            progress_callback((idx + 1) / total_exchanges)
+        if has_historical:
+            results[exchange_name]["change"] = exchange_total - exchange_historical
+            results[exchange_name]["change_pct"] = ((exchange_total - exchange_historical) / exchange_historical * 100) if exchange_historical > 0 else 0
     
     return results
 
 
-def create_summary_dataframe(data: Dict[str, Dict]) -> pd.DataFrame:
-    """Create summary DataFrame from exchange data"""
+def create_summary_dataframe(data: Dict) -> pd.DataFrame:
+    """Create summary DataFrame with historical comparison"""
     rows = []
-    total_balance = sum(d["total"] for d in data.values())
-    
-    for exchange, details in data.items():
-        market_share = (details["total"] / total_balance * 100) if total_balance > 0 else 0
-        rows.append({
+    for exchange, info in data.items():
+        row = {
             "Exchange": exchange,
-            "Balance (XRP)": details["total"],
-            "Market Share (%)": market_share,
-            "Wallet Count": details["wallet_count"]
-        })
+            "Balance (XRP)": info["total"],
+            "Wallet Count": info["wallet_count"]
+        }
+        
+        if info.get("has_historical"):
+            row[f"Balance ({HISTORICAL_DATE})"] = info["historical"]
+            row["Change (XRP)"] = info["change"]
+            row["Change (%)"] = info["change_pct"]
+        else:
+            row[f"Balance ({HISTORICAL_DATE})"] = None
+            row["Change (XRP)"] = None
+            row["Change (%)"] = None
+            
+        rows.append(row)
     
     df = pd.DataFrame(rows)
     df = df.sort_values("Balance (XRP)", ascending=False).reset_index(drop=True)
-    df.index = df.index + 1  # Start ranking from 1
+    
+    # Calculate market share
+    total = df["Balance (XRP)"].sum()
+    df["Market Share (%)"] = df["Balance (XRP)"] / total * 100
+    
+    # Reorder columns
+    cols = ["Exchange", "Balance (XRP)", f"Balance ({HISTORICAL_DATE})", "Change (XRP)", "Change (%)", "Market Share (%)", "Wallet Count"]
+    df = df[[c for c in cols if c in df.columns]]
+    
+    df.index = df.index + 1
     df.index.name = "Rank"
     return df
 
@@ -333,42 +426,34 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    # Custom CSS - works with both light and dark themes
+    # Custom CSS
     st.markdown("""
         <style>
-        /* Metric cards styling */
         [data-testid="stMetric"] {
             background-color: #f0f2f6;
             padding: 15px;
             border-radius: 10px;
             border: 1px solid #e0e0e0;
         }
-        [data-testid="stMetric"] label {
-            color: #555 !important;
-        }
+        [data-testid="stMetric"] label { color: #555 !important; }
         [data-testid="stMetric"] [data-testid="stMetricValue"] {
             color: #1f77b4 !important;
             font-size: 1.8rem !important;
         }
-        /* Dark mode support */
         @media (prefers-color-scheme: dark) {
             [data-testid="stMetric"] {
                 background-color: #262730;
                 border: 1px solid #3d3d3d;
             }
-            [data-testid="stMetric"] label {
-                color: #fafafa !important;
-            }
-            [data-testid="stMetric"] [data-testid="stMetricValue"] {
-                color: #00d4ff !important;
-            }
+            [data-testid="stMetric"] label { color: #fafafa !important; }
+            [data-testid="stMetric"] [data-testid="stMetricValue"] { color: #00d4ff !important; }
         }
         </style>
     """, unsafe_allow_html=True)
     
     # Header
     st.title("💎 XRP Exchange Holdings Tracker")
-    st.markdown("Real-time tracking of XRP holdings across major cryptocurrency exchanges")
+    st.markdown(f"Real-time tracking of XRP holdings | **Historical benchmark: {HISTORICAL_DATE}**")
     
     # Sidebar
     with st.sidebar:
@@ -380,51 +465,41 @@ def main():
         
         st.markdown("---")
         
-        # Exchange filter
         st.subheader("📊 Filter Exchanges")
         all_exchanges = list(EXCHANGES.keys())
         selected_exchanges = st.multiselect(
             "Select exchanges to display",
             options=all_exchanges,
             default=all_exchanges,
-            help="Choose which exchanges to include in the analysis"
+            help="Choose which exchanges to include"
         )
         
         st.markdown("---")
         
-        # Display options
         st.subheader("⚙️ Display Options")
+        show_historical = st.checkbox("Show historical comparison", value=True, help=f"Compare to {HISTORICAL_DATE}")
         show_wallet_details = st.checkbox("Show wallet-level details", value=False)
-        chart_type = st.selectbox(
-            "Chart Type",
-            ["Bar Chart", "Treemap", "Pie Chart"],
-            index=0
-        )
-        
+        chart_type = st.selectbox("Chart Type", ["Bar Chart", "Treemap", "Pie Chart"], index=0)
         top_n = st.slider("Top N exchanges to highlight", 5, 20, 10)
         
         st.markdown("---")
         st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        st.caption(f"Data source: {RIPPLED_URL}")
+        st.caption(f"Historical benchmark: {HISTORICAL_DATE}")
     
-    # Main content
     if not selected_exchanges:
         st.warning("Please select at least one exchange from the sidebar.")
         return
     
-    # Fetch data with progress bar
+    # Fetch data
     with st.spinner("Fetching live data from XRP Ledger..."):
         progress_bar = st.progress(0)
         data = fetch_all_balances(progress_callback=lambda p: progress_bar.progress(p))
         progress_bar.empty()
     
-    # Filter data based on selection
     filtered_data = {k: v for k, v in data.items() if k in selected_exchanges}
-    
-    # Create summary DataFrame
     df = create_summary_dataframe(filtered_data)
     
-    # Key Metrics Row
+    # Key Metrics
     st.markdown("### 📈 Market Overview")
     
     total_xrp = df["Balance (XRP)"].sum()
@@ -432,35 +507,25 @@ def main():
     top10_share = df.head(10)["Market Share (%)"].sum()
     exchange_count = len(df)
     
-    col1, col2, col3, col4 = st.columns(4)
+    total_historical = df[f"Balance ({HISTORICAL_DATE})"].dropna().sum()
+    total_change = total_xrp - total_historical if total_historical > 0 else None
+    total_change_pct = (total_change / total_historical * 100) if total_historical > 0 else None
+    
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
-        st.metric(
-            label="Total XRP Holdings",
-            value=f"{total_xrp:,.0f}",
-            help="Total XRP held across all selected exchanges"
-        )
-    
+        st.metric(label="Total XRP Holdings", value=f"{total_xrp:,.0f}")
     with col2:
-        st.metric(
-            label="Exchanges Tracked",
-            value=f"{exchange_count}",
-            help="Number of exchanges being monitored"
-        )
-    
+        st.metric(label="Exchanges Tracked", value=f"{exchange_count}")
     with col3:
-        st.metric(
-            label="Top 3 Concentration",
-            value=f"{top3_share:.1f}%",
-            help="Percentage of total holdings by top 3 exchanges"
-        )
-    
+        st.metric(label="Top 3 Concentration", value=f"{top3_share:.1f}%")
     with col4:
-        st.metric(
-            label="Top 10 Concentration",
-            value=f"{top10_share:.1f}%",
-            help="Percentage of total holdings by top 10 exchanges"
-        )
+        st.metric(label="Top 10 Concentration", value=f"{top10_share:.1f}%")
+    with col5:
+        if show_historical and total_change is not None:
+            st.metric(label=f"Change Since {HISTORICAL_DATE}", value=f"{total_change:+,.0f}", delta=f"{total_change_pct:+.1f}%")
+        else:
+            st.metric(label=f"Change Since {HISTORICAL_DATE}", value="N/A")
     
     st.markdown("---")
     
@@ -469,47 +534,24 @@ def main():
     
     with col_chart:
         st.markdown(f"### 📊 Holdings Distribution (Top {top_n})")
-        
         chart_df = df.head(top_n).copy()
         
         if chart_type == "Bar Chart":
-            fig = px.bar(
-                chart_df,
-                x="Exchange",
-                y="Balance (XRP)",
-                color="Market Share (%)",
-                color_continuous_scale="Blues",
-                text=chart_df["Balance (XRP)"].apply(lambda x: f"{x/1e6:.1f}M"),
-                hover_data=["Market Share (%)", "Wallet Count"]
-            )
+            fig = px.bar(chart_df, x="Exchange", y="Balance (XRP)", color="Market Share (%)",
+                        color_continuous_scale="Blues",
+                        text=chart_df["Balance (XRP)"].apply(lambda x: f"{x/1e6:.1f}M"),
+                        hover_data=["Market Share (%)", "Wallet Count"])
             fig.update_traces(textposition="outside")
-            fig.update_layout(
-                xaxis_tickangle=-45,
-                height=500,
-                showlegend=False,
-                plot_bgcolor="rgba(0,0,0,0)",
-                paper_bgcolor="rgba(0,0,0,0)"
-            )
-            
+            fig.update_layout(xaxis_tickangle=-45, height=500, showlegend=False,
+                            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
         elif chart_type == "Treemap":
-            fig = px.treemap(
-                chart_df,
-                path=["Exchange"],
-                values="Balance (XRP)",
-                color="Balance (XRP)",
-                color_continuous_scale="Blues",
-                hover_data=["Market Share (%)", "Wallet Count"]
-            )
+            fig = px.treemap(chart_df, path=["Exchange"], values="Balance (XRP)",
+                           color="Balance (XRP)", color_continuous_scale="Blues",
+                           hover_data=["Market Share (%)", "Wallet Count"])
             fig.update_layout(height=500)
-            
-        else:  # Pie Chart
-            fig = px.pie(
-                chart_df,
-                names="Exchange",
-                values="Balance (XRP)",
-                hole=0.4,
-                color_discrete_sequence=px.colors.sequential.Blues_r
-            )
+        else:
+            fig = px.pie(chart_df, names="Exchange", values="Balance (XRP)", hole=0.4,
+                        color_discrete_sequence=px.colors.sequential.Blues_r)
             fig.update_traces(textposition='inside', textinfo='percent+label')
             fig.update_layout(height=500)
         
@@ -517,47 +559,96 @@ def main():
     
     with col_table:
         st.markdown("### 🏆 Rankings")
-        
-        # Format the display DataFrame
         display_df = df.copy()
         display_df["Balance (XRP)"] = display_df["Balance (XRP)"].apply(lambda x: f"{x:,.0f}")
         display_df["Market Share (%)"] = display_df["Market Share (%)"].apply(lambda x: f"{x:.2f}%")
         
-        st.dataframe(
-            display_df,
-            use_container_width=True,
-            height=450
-        )
+        if show_historical:
+            display_df[f"Balance ({HISTORICAL_DATE})"] = display_df[f"Balance ({HISTORICAL_DATE})"].apply(
+                lambda x: f"{x:,.0f}" if pd.notna(x) else "N/A")
+            display_df["Change (XRP)"] = display_df["Change (XRP)"].apply(
+                lambda x: f"{x:+,.0f}" if pd.notna(x) else "N/A")
+            display_df["Change (%)"] = display_df["Change (%)"].apply(
+                lambda x: f"{x:+.2f}%" if pd.notna(x) else "N/A")
+            cols_to_show = ["Exchange", "Balance (XRP)", f"Balance ({HISTORICAL_DATE})", "Change (XRP)", "Change (%)", "Market Share (%)"]
+        else:
+            cols_to_show = ["Exchange", "Balance (XRP)", "Market Share (%)", "Wallet Count"]
+        
+        st.dataframe(display_df[cols_to_show], use_container_width=True, height=450)
     
     st.markdown("---")
     
-    # Market Share Visualization
+    # Historical Change Analysis
+    if show_historical:
+        st.markdown(f"### 📊 Change Since {HISTORICAL_DATE}")
+        hist_df = df[df["Change (XRP)"].notna()].copy()
+        
+        if len(hist_df) > 0:
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                hist_df_sorted = hist_df.sort_values("Change (XRP)", ascending=True)
+                colors = ['#ff5252' if x < 0 else '#00c853' for x in hist_df_sorted["Change (XRP)"]]
+                
+                fig_change = go.Figure(go.Bar(
+                    x=hist_df_sorted["Change (XRP)"],
+                    y=hist_df_sorted["Exchange"],
+                    orientation='h',
+                    marker_color=colors,
+                    text=hist_df_sorted["Change (XRP)"].apply(lambda x: f"{x/1e6:+.1f}M"),
+                    textposition='outside'
+                ))
+                fig_change.update_layout(title=f"XRP Balance Change Since {HISTORICAL_DATE}",
+                                        xaxis_title="Change (XRP)", height=400, showlegend=False)
+                st.plotly_chart(fig_change, use_container_width=True)
+            
+            with col2:
+                hist_df_pct = hist_df.sort_values("Change (%)", ascending=True)
+                colors_pct = ['#ff5252' if x < 0 else '#00c853' for x in hist_df_pct["Change (%)"]]
+                
+                fig_pct = go.Figure(go.Bar(
+                    x=hist_df_pct["Change (%)"],
+                    y=hist_df_pct["Exchange"],
+                    orientation='h',
+                    marker_color=colors_pct,
+                    text=hist_df_pct["Change (%)"].apply(lambda x: f"{x:+.1f}%"),
+                    textposition='outside'
+                ))
+                fig_pct.update_layout(title=f"Percentage Change Since {HISTORICAL_DATE}",
+                                     xaxis_title="Change (%)", height=400, showlegend=False)
+                st.plotly_chart(fig_pct, use_container_width=True)
+            
+            gainers = hist_df[hist_df["Change (XRP)"] > 0]
+            losers = hist_df[hist_df["Change (XRP)"] < 0]
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Exchanges with Gains", len(gainers))
+            with col2:
+                st.metric("Exchanges with Losses", len(losers))
+            with col3:
+                net_change = hist_df["Change (XRP)"].sum()
+                st.metric("Net Change (Tracked)", f"{net_change:+,.0f} XRP")
+        else:
+            st.info(f"No historical data available for the selected exchanges.")
+    
+    st.markdown("---")
+    
+    # Market Share Analysis
     st.markdown("### 🥧 Market Share Analysis")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        # Horizontal bar for market share
-        fig_share = px.bar(
-            df.head(15),
-            y="Exchange",
-            x="Market Share (%)",
-            orientation="h",
-            color="Market Share (%)",
-            color_continuous_scale="Viridis",
-            text=df.head(15)["Market Share (%)"].apply(lambda x: f"{x:.1f}%")
-        )
+        fig_share = px.bar(df.head(15), y="Exchange", x="Market Share (%)", orientation="h",
+                          color="Market Share (%)", color_continuous_scale="Viridis",
+                          text=df.head(15)["Market Share (%)"].apply(lambda x: f"{x:.1f}%"))
         fig_share.update_traces(textposition="outside")
-        fig_share.update_layout(
-            height=500,
-            yaxis={'categoryorder': 'total ascending'},
-            showlegend=False,
-            title="Market Share by Exchange"
-        )
+        fig_share.update_layout(height=500, yaxis={'categoryorder': 'total ascending'},
+                               showlegend=False, title="Market Share by Exchange")
         st.plotly_chart(fig_share, use_container_width=True)
     
     with col2:
-        # Cumulative distribution
         cumulative_df = df.copy()
         cumulative_df["Cumulative Share (%)"] = cumulative_df["Market Share (%)"].cumsum()
         
@@ -570,51 +661,50 @@ def main():
             line=dict(color='#00d4ff', width=3),
             marker=dict(size=8)
         ))
-        fig_cumulative.add_hline(y=50, line_dash="dash", line_color="orange", 
-                                  annotation_text="50% threshold")
-        fig_cumulative.add_hline(y=80, line_dash="dash", line_color="red",
-                                  annotation_text="80% threshold")
-        fig_cumulative.update_layout(
-            title="Cumulative Market Concentration",
-            xaxis_title="Number of Exchanges",
-            yaxis_title="Cumulative Market Share (%)",
-            height=500
-        )
+        fig_cumulative.add_hline(y=50, line_dash="dash", line_color="orange", annotation_text="50% threshold")
+        fig_cumulative.add_hline(y=80, line_dash="dash", line_color="red", annotation_text="80% threshold")
+        fig_cumulative.update_layout(title="Cumulative Market Concentration",
+                                     xaxis_title="Number of Exchanges",
+                                     yaxis_title="Cumulative Market Share (%)", height=500)
         st.plotly_chart(fig_cumulative, use_container_width=True)
     
-    # Wallet-level details (expandable)
+    # Wallet-level details
     if show_wallet_details:
         st.markdown("---")
         st.markdown("### 🔍 Wallet-Level Details")
         
-        selected_exchange = st.selectbox(
-            "Select an exchange to view wallet details",
-            options=selected_exchanges
-        )
+        selected_exchange = st.selectbox("Select an exchange to view wallet details", options=selected_exchanges)
         
         if selected_exchange and selected_exchange in filtered_data:
             wallet_data = filtered_data[selected_exchange]["wallets"]
             wallet_df = pd.DataFrame(wallet_data)
             wallet_df = wallet_df.sort_values("balance", ascending=False).reset_index(drop=True)
             wallet_df.index = wallet_df.index + 1
-            wallet_df.columns = ["Address", "Wallet Name", "Balance (XRP)"]
-            wallet_df["Balance (XRP)"] = wallet_df["Balance (XRP)"].apply(lambda x: f"{x:,.0f}")
+            
+            display_wallet_df = wallet_df.copy()
+            display_wallet_df = display_wallet_df.rename(columns={"address": "Address", "name": "Wallet Name", "balance": "Balance (XRP)"})
+            
+            if show_historical and "historical" in wallet_df.columns:
+                display_wallet_df["Historical"] = wallet_df["historical"].apply(lambda x: f"{x:,.0f}" if pd.notna(x) else "N/A")
+                display_wallet_df["Change"] = wallet_df.apply(lambda r: f"{r['change']:+,.0f}" if pd.notna(r.get('change')) else "N/A", axis=1)
+                display_wallet_df["Change %"] = wallet_df.apply(lambda r: f"{r['change_pct']:+.2f}%" if pd.notna(r.get('change_pct')) else "N/A", axis=1)
+            
+            display_wallet_df["Balance (XRP)"] = display_wallet_df["Balance (XRP)"].apply(lambda x: f"{x:,.0f}")
+            
+            cols_to_display = ["Address", "Wallet Name", "Balance (XRP)"]
+            if show_historical and "Historical" in display_wallet_df.columns:
+                cols_to_display.extend(["Historical", "Change", "Change %"])
             
             col1, col2 = st.columns([2, 1])
             
             with col1:
-                st.dataframe(wallet_df, use_container_width=True)
+                st.dataframe(display_wallet_df[cols_to_display], use_container_width=True)
             
             with col2:
-                # Mini pie chart for wallet distribution
                 raw_wallet_df = pd.DataFrame(wallet_data)
                 if len(raw_wallet_df) > 1 and raw_wallet_df["balance"].sum() > 0:
-                    fig_wallet = px.pie(
-                        raw_wallet_df,
-                        names="name",
-                        values="balance",
-                        title=f"{selected_exchange} Wallet Distribution"
-                    )
+                    fig_wallet = px.pie(raw_wallet_df, names="name", values="balance",
+                                       title=f"{selected_exchange} Wallet Distribution")
                     fig_wallet.update_layout(height=300, showlegend=True)
                     st.plotly_chart(fig_wallet, use_container_width=True)
     
@@ -626,54 +716,48 @@ def main():
     
     with col1:
         csv = df.to_csv()
-        st.download_button(
-            label="📄 Download CSV",
-            data=csv,
-            file_name=f"xrp_holdings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv",
-            use_container_width=True
-        )
+        st.download_button(label="📄 Download CSV", data=csv,
+                          file_name=f"xrp_holdings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                          mime="text/csv", use_container_width=True)
     
     with col2:
         json_data = json.dumps(filtered_data, indent=2, default=str)
-        st.download_button(
-            label="📋 Download JSON",
-            data=json_data,
-            file_name=f"xrp_holdings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-            mime="application/json",
-            use_container_width=True
-        )
+        st.download_button(label="📋 Download JSON", data=json_data,
+                          file_name=f"xrp_holdings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                          mime="application/json", use_container_width=True)
     
     with col3:
-        # Summary report
         report = f"""XRP Exchange Holdings Report
 Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-{'='*50}
+Historical Benchmark: {HISTORICAL_DATE}
+{'='*60}
 
 MARKET OVERVIEW
 - Total XRP Holdings: {total_xrp:,.0f} XRP
 - Exchanges Tracked: {exchange_count}
 - Top 3 Concentration: {top3_share:.2f}%
 - Top 10 Concentration: {top10_share:.2f}%
-
-TOP 10 EXCHANGES
-{'='*50}
 """
-        for idx, row in df.head(10).iterrows():
-            report += f"{idx}. {row['Exchange']}: {float(row['Balance (XRP)'].replace(',', '') if isinstance(row['Balance (XRP)'], str) else row['Balance (XRP)']):,.0f} XRP ({row['Market Share (%)']})\n"
+        if total_change is not None:
+            report += f"- Change Since {HISTORICAL_DATE}: {total_change:+,.0f} XRP ({total_change_pct:+.2f}%)\n"
         
-        st.download_button(
-            label="📝 Download Report",
-            data=report,
-            file_name=f"xrp_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-            mime="text/plain",
-            use_container_width=True
-        )
+        report += f"\nTOP 10 EXCHANGES\n{'='*60}\n"
+        for idx, row in df.head(10).iterrows():
+            balance = row['Balance (XRP)']
+            share = row['Market Share (%)']
+            change = row.get('Change (XRP)')
+            change_str = f" | Change: {change:+,.0f}" if pd.notna(change) else ""
+            report += f"{idx}. {row['Exchange']}: {balance:,.0f} XRP ({share:.2f}%){change_str}\n"
+        
+        st.download_button(label="📝 Download Report", data=report,
+                          file_name=f"xrp_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                          mime="text/plain", use_container_width=True)
     
     # Footer
     st.markdown("---")
-    st.caption("💡 Data is fetched live from the XRP Ledger. Balances are cached for 5 minutes to improve performance.")
-    st.caption("⚠️ This dashboard is for informational purposes only. Always verify data from official sources.")
+    st.caption("💡 Data is fetched live from the XRP Ledger. Balances are cached for 5 minutes.")
+    st.caption(f"📅 Historical comparison data from {HISTORICAL_DATE} for: Upbit, Binance, Kraken, Bybit, SBI VC Trade")
+    st.caption("⚠️ This dashboard is for informational purposes only.")
 
 
 if __name__ == "__main__":
