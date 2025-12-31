@@ -17,6 +17,32 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional
 import json
 
+# ============================================================================
+# VISITOR TRACKING
+# ============================================================================
+
+def get_visitor_count():
+    """Get and increment visitor count using a simple file-based counter"""
+    count_file = "visitor_count.txt"
+    try:
+        # Try to read existing count
+        with open(count_file, "r") as f:
+            count = int(f.read().strip())
+    except:
+        count = 0
+    
+    # Increment for new session
+    if 'counted' not in st.session_state:
+        st.session_state.counted = True
+        count += 1
+        try:
+            with open(count_file, "w") as f:
+                f.write(str(count))
+        except:
+            pass
+    
+    return count
+
 # Suppress urllib3 warnings
 urllib3.disable_warnings()
 
@@ -790,6 +816,7 @@ def main():
             justify-content: center;
             align-items: center;
             z-index: 999999;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
         .popup-overlay.show {
             display: flex !important;
@@ -809,10 +836,16 @@ def main():
             to { transform: scale(1); opacity: 1; }
         }
         .x-icon {
-            font-size: 60px;
+            font-size: 70px;
             margin-bottom: 20px;
             display: inline-block;
             animation: bounce 1s ease infinite;
+            background: #fff;
+            color: #000;
+            width: 90px;
+            height: 90px;
+            border-radius: 18px;
+            line-height: 90px;
         }
         @keyframes bounce {
             0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
@@ -824,6 +857,7 @@ def main():
             font-size: 28px;
             font-weight: bold;
             margin-bottom: 15px;
+            text-shadow: 0 0 30px rgba(29, 161, 242, 0.5);
         }
         .popup-subtext {
             color: #a0a0a0;
@@ -834,7 +868,7 @@ def main():
             background: linear-gradient(45deg, #1da1f2, #0d8ecf);
             color: white !important;
             border: none;
-            padding: 15px 35px;
+            padding: 18px 40px;
             font-size: 18px;
             font-weight: bold;
             border-radius: 50px;
@@ -842,12 +876,16 @@ def main():
             text-decoration: none !important;
             display: inline-block;
             margin-bottom: 15px;
-            box-shadow: 0 0 20px rgba(29, 161, 242, 0.5);
+            box-shadow: 0 0 20px rgba(29, 161, 242, 0.5), 0 0 40px rgba(29, 161, 242, 0.3);
             animation: glow 2s ease-in-out infinite alternate;
+            transition: transform 0.2s ease;
+        }
+        .follow-btn:hover {
+            transform: scale(1.05);
         }
         @keyframes glow {
-            from { box-shadow: 0 0 20px rgba(29, 161, 242, 0.5); }
-            to { box-shadow: 0 0 40px rgba(29, 161, 242, 0.8); }
+            from { box-shadow: 0 0 20px rgba(29, 161, 242, 0.5), 0 0 40px rgba(29, 161, 242, 0.3); }
+            to { box-shadow: 0 0 30px rgba(29, 161, 242, 0.8), 0 0 60px rgba(29, 161, 242, 0.5), 0 0 80px rgba(29, 161, 242, 0.3); }
         }
         .dismiss-btn {
             background: transparent;
@@ -856,8 +894,9 @@ def main():
             padding: 10px 20px;
             font-size: 14px;
             cursor: pointer;
+            transition: color 0.2s ease;
         }
-        .dismiss-btn:hover { color: #bbb; }
+        .dismiss-btn:hover { color: #fff; }
     </style>
     
     <div class="popup-overlay" id="xPopup">
@@ -878,8 +917,27 @@ def main():
             var popup = document.getElementById('xPopup');
             var dismissBtn = document.getElementById('dismissBtn');
             
-            // Check if already dismissed
-            if (!sessionStorage.getItem('xrpPopupShown')) {
+            // Move popup to parent document for full-screen overlay
+            try {
+                var parentDoc = window.parent.document;
+                var popupClone = popup.cloneNode(true);
+                var styleClone = document.querySelector('style').cloneNode(true);
+                parentDoc.body.appendChild(styleClone);
+                parentDoc.body.appendChild(popupClone);
+                popup.style.display = 'none';
+                popup = popupClone;
+                dismissBtn = popupClone.querySelector('#dismissBtn');
+            } catch(e) {
+                console.log('Using iframe popup');
+            }
+            
+            // Check if already dismissed this session
+            var dismissed = false;
+            try {
+                dismissed = sessionStorage.getItem('xrpPopupShown') === 'true';
+            } catch(e) {}
+            
+            if (!dismissed) {
                 setTimeout(function() {
                     popup.classList.add('show');
                 }, 5000);
@@ -888,21 +946,21 @@ def main():
             // Dismiss button
             dismissBtn.onclick = function() {
                 popup.classList.remove('show');
-                sessionStorage.setItem('xrpPopupShown', 'true');
+                try { sessionStorage.setItem('xrpPopupShown', 'true'); } catch(e) {}
             };
             
             // Click outside to close
             popup.onclick = function(e) {
                 if (e.target === popup) {
                     popup.classList.remove('show');
-                    sessionStorage.setItem('xrpPopupShown', 'true');
+                    try { sessionStorage.setItem('xrpPopupShown', 'true'); } catch(e) {}
                 }
             };
         })();
     </script>
     '''
     
-    components.html(popup_html, height=0)
+    components.html(popup_html, height=1)
     
     st.markdown(f"Real-time tracking of XRP holdings | **Historical benchmark: {HISTORICAL_DATE}**")
     
@@ -936,6 +994,35 @@ def main():
         st.markdown("---")
         st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         st.caption(f"Historical benchmark: {HISTORICAL_DATE}")
+        
+        # Visitor counter
+        st.markdown("---")
+        visitor_count = get_visitor_count()
+        st.markdown(f"""
+            <div style="text-align: center; padding: 10px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 10px; border: 1px solid #00d4ff;">
+                <div style="color: #00d4ff; font-size: 11px; letter-spacing: 1px;">👥 VISITORS</div>
+                <div style="color: #fff; font-size: 24px; font-weight: bold;">{visitor_count:,}</div>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    # Add analytics tracking (GoatCounter - free, privacy-friendly)
+    components.html("""
+        <script>
+            // Simple page view tracking
+            (function() {
+                var sessionKey = 'xrp_dashboard_session';
+                if (!sessionStorage.getItem(sessionKey)) {
+                    sessionStorage.setItem(sessionKey, 'true');
+                    // Log visit (you can replace with your own analytics endpoint)
+                    console.log('New visitor session');
+                }
+            })();
+        </script>
+        
+        <!-- Optional: Add GoatCounter for free analytics -->
+        <!-- Uncomment and replace 'yoursite' with your GoatCounter site name -->
+        <!-- <script data-goatcounter="https://yoursite.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script> -->
+    """, height=0)
     
     if not selected_exchanges:
         st.warning("Please select at least one exchange from the sidebar.")
