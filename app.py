@@ -657,43 +657,126 @@ def main():
     # Get XRP price
     xrp_data = get_xrp_price()
     
-    # Price widget - always show, with fallback
+    # Import components
+    import streamlit.components.v1 as components
+    
+    # Price widget HTML
     if xrp_data["price"]:
         change_class = "positive" if xrp_data["change_24h"] >= 0 else "negative"
         change_sign = "+" if xrp_data["change_24h"] >= 0 else ""
         price_html = f'''
-        <div class="xrp-price-widget">
-            <div class="price-label">XRP PRICE</div>
-            <div class="price-value">${xrp_data["price"]:.4f}</div>
-            <div class="price-change {change_class}">{change_sign}{xrp_data["change_24h"]:.2f}% (24h)</div>
-        </div>
+            <div class="xrp-price-widget">
+                <div class="price-label">XRP PRICE</div>
+                <div class="price-value">${xrp_data["price"]:.4f}</div>
+                <div class="price-change {change_class}">{change_sign}{xrp_data["change_24h"]:.2f}% (24h)</div>
+            </div>
         '''
     else:
         price_html = '''
-        <div class="xrp-price-widget">
-            <div class="price-label">XRP PRICE</div>
-            <div class="price-value">Loading...</div>
-            <div class="price-change">--</div>
-        </div>
+            <div class="xrp-price-widget">
+                <div class="price-label">XRP PRICE</div>
+                <div class="price-value">Loading...</div>
+                <div class="price-change">--</div>
+            </div>
         '''
     
-    # Header widgets
-    st.markdown(f'''
-        <div class="header-widgets">
-            {price_html}
-            <a href="https://twitter.com/chachakobe4er" target="_blank" class="x-army-widget">
-                <div class="x-logo">𝕏</div>
-                <div class="x-army-text">
-                    <div class="x-army-title">XRP <span>𝕏</span> Army</div>
-                    <div class="x-army-handle">@chachakobe4er</div>
-                </div>
-            </a>
-        </div>
-    ''', unsafe_allow_html=True)
+    # Combined header widgets with styles
+    header_html = f'''
+    <style>
+        .header-widgets {{
+            display: flex;
+            gap: 15px;
+            margin: 10px 0 20px 0;
+            flex-wrap: wrap;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }}
+        .xrp-price-widget {{
+            background: linear-gradient(135deg, #0a1628 0%, #1a2940 100%);
+            border: 1px solid #00d4ff;
+            border-radius: 12px;
+            padding: 15px 25px;
+            display: inline-flex;
+            flex-direction: column;
+            align-items: flex-start;
+            box-shadow: 0 0 15px rgba(0, 212, 255, 0.2);
+        }}
+        .price-label {{
+            color: #00d4ff;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }}
+        .price-value {{
+            color: #ffffff;
+            font-size: 28px;
+            font-weight: bold;
+        }}
+        .price-change {{
+            font-size: 13px;
+            margin-top: 3px;
+        }}
+        .price-change.positive {{ color: #00c853; }}
+        .price-change.negative {{ color: #ff5252; }}
+        .x-army-widget {{
+            background: linear-gradient(135deg, #1a1a2e 0%, #232333 100%);
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 12px 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }}
+        .x-army-widget:hover {{
+            border-color: #1da1f2;
+            box-shadow: 0 0 15px rgba(29, 161, 242, 0.3);
+            transform: translateY(-2px);
+        }}
+        .x-logo {{
+            background: #ffffff;
+            color: #000000;
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 18px;
+        }}
+        .x-army-text {{
+            display: flex;
+            flex-direction: column;
+        }}
+        .x-army-title {{
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 600;
+        }}
+        .x-army-title span {{ color: #00d4ff; }}
+        .x-army-handle {{
+            color: #888;
+            font-size: 12px;
+        }}
+    </style>
+    <div class="header-widgets">
+        {price_html}
+        <a href="https://twitter.com/chachakobe4er" target="_blank" class="x-army-widget">
+            <div class="x-logo">𝕏</div>
+            <div class="x-army-text">
+                <div class="x-army-title">XRP <span>𝕏</span> Army</div>
+                <div class="x-army-handle">@chachakobe4er</div>
+            </div>
+        </a>
+    </div>
+    '''
+    
+    components.html(header_html, height=100)
     
     # Popup using components.html (JavaScript works here)
-    import streamlit.components.v1 as components
-    
     popup_html = '''
     <style>
         .popup-overlay {
