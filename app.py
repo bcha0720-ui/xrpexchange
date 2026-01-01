@@ -737,37 +737,29 @@ def main():
             </a>
         ''', unsafe_allow_html=True)
     
-    # Google Analytics tracking - using iframe workaround
+    # Visitor tracking - using counter.dev (free, works with Streamlit)
+    # Plus keep trying GA4 via components
     GA_TRACKING_ID = "G-3EVLLY6ND7"
     
-    # Method 1: Direct script injection via components
-    ga_html = f'''
+    tracking_html = f'''
     <!DOCTYPE html>
     <html>
     <head>
+        <!-- Google Analytics 4 -->
         <script async src="https://www.googletagmanager.com/gtag/js?id={GA_TRACKING_ID}"></script>
         <script>
             window.dataLayer = window.dataLayer || [];
             function gtag(){{dataLayer.push(arguments);}}
             gtag('js', new Date());
-            gtag('config', '{GA_TRACKING_ID}', {{
-                'page_title': 'XRP Exchange Holdings Tracker',
-                'page_location': window.location.href
-            }});
+            gtag('config', '{GA_TRACKING_ID}');
         </script>
+        <!-- Counter.dev - Free backup analytics -->
+        <script src="https://cdn.counter.dev/script.js" data-id="xrp-exchange-tracker" data-utcoffset="-8"></script>
     </head>
-    <body style="margin:0;padding:0;height:0;overflow:hidden;"></body>
+    <body></body>
     </html>
     '''
-    components.html(ga_html, height=0, scrolling=False)
-    
-    # Method 2: Also try injecting via markdown with script tag
-    st.markdown(f'''
-        <img src="https://www.google-analytics.com/collect?v=1&tid=UA-000000-0&cid=555&t=pageview&dp=%2Fxrp-dashboard" style="display:none" />
-        <noscript>
-            <img src="https://www.googletagmanager.com/ns.html?id={GA_TRACKING_ID}" height="0" width="0" style="display:none;visibility:hidden">
-        </noscript>
-    ''', unsafe_allow_html=True)
+    components.html(tracking_html, height=0)
     
     st.markdown(f"Real-time tracking of XRP holdings | **Historical benchmark: {HISTORICAL_DATE}**")
     
