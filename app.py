@@ -737,30 +737,37 @@ def main():
             </a>
         ''', unsafe_allow_html=True)
     
-    # Google Analytics tracking
+    # Google Analytics tracking - using iframe workaround
     GA_TRACKING_ID = "G-3EVLLY6ND7"
     
-    # Use components.html with height=1 to ensure script executes
-    components.html(f'''
+    # Method 1: Direct script injection via components
+    ga_html = f'''
+    <!DOCTYPE html>
+    <html>
+    <head>
         <script async src="https://www.googletagmanager.com/gtag/js?id={GA_TRACKING_ID}"></script>
         <script>
             window.dataLayer = window.dataLayer || [];
             function gtag(){{dataLayer.push(arguments);}}
             gtag('js', new Date());
-            gtag('config', '{GA_TRACKING_ID}');
-            
-            // Also track in parent window if possible
-            try {{
-                if (window.parent && window.parent !== window) {{
-                    window.parent.dataLayer = window.parent.dataLayer || [];
-                    function parentGtag(){{window.parent.dataLayer.push(arguments);}}
-                    parentGtag('js', new Date());
-                    parentGtag('config', '{GA_TRACKING_ID}');
-                }}
-            }} catch(e) {{}}
+            gtag('config', '{GA_TRACKING_ID}', {{
+                'page_title': 'XRP Exchange Holdings Tracker',
+                'page_location': window.location.href
+            }});
         </script>
-        <div style="height:1px;"></div>
-    ''', height=1)
+    </head>
+    <body style="margin:0;padding:0;height:0;overflow:hidden;"></body>
+    </html>
+    '''
+    components.html(ga_html, height=0, scrolling=False)
+    
+    # Method 2: Also try injecting via markdown with script tag
+    st.markdown(f'''
+        <img src="https://www.google-analytics.com/collect?v=1&tid=UA-000000-0&cid=555&t=pageview&dp=%2Fxrp-dashboard" style="display:none" />
+        <noscript>
+            <img src="https://www.googletagmanager.com/ns.html?id={GA_TRACKING_ID}" height="0" width="0" style="display:none;visibility:hidden">
+        </noscript>
+    ''', unsafe_allow_html=True)
     
     st.markdown(f"Real-time tracking of XRP holdings | **Historical benchmark: {HISTORICAL_DATE}**")
     
