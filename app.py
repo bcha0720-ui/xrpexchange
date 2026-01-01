@@ -879,6 +879,7 @@ def main():
     ga_code = f"""
     <iframe src="https://www.googletagmanager.com/ns.html?id={GA_TRACKING_ID}" height="0" width="0" style="display:none;visibility:hidden"></iframe>
     """
+    <script defer src="https://cloud.umami.is/script.js" data-website-id="44e180d6-aca4-4999-93a2-0761f227d90d"></script>
     st.components.v1.html(ga_code, height=0)
     
     st.markdown(f"Real-time tracking of XRP holdings | **Historical benchmark: {HISTORICAL_DATE}**")
