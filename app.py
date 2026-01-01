@@ -874,7 +874,7 @@ def main():
         ''', unsafe_allow_html=True)
     
     # Google Analytics - create a small HTML file approach
-    GA_TRACKING_ID = "G-3EVLLY6ND7"
+    GA_TRACKING_ID = "G-ESGLMXN5VE"
     
     # This method creates a full HTML document that loads GA
     ga_code = f"""
