@@ -85,6 +85,9 @@ HISTORICAL_BALANCES_20250224 = {
     "rPJ5GFpyDLv7gqeB1uZVUBwDwi41kaXN5A": 109917943.727643,  # Binance 12
     "rPz2qA93PeRCyHyFCqyNggnyycJR1N4iNf": 661827727.919798,  # Binance 13
     "rhWj9gaovwu2hZxYW7p388P8GRbuXFLQkK": 4831865.223177,  # Binance 14
+    #Bithumb
+    "rrsSUzrT2mYAMiL46pm7cwn6MmMmxVkEWM": 42,702,315.78578, #Bithumb11
+    "rPyCQm8E5j78PDbrfKF24fRC7qUAk1kDMZ": 1,550,698,091.981909, #Bithumb12
     # Kraken
     "rGZjPjMkfhAqmc1ssEiT753uAgyftHRo2m": 20.251542,  # Kraken3
     "rLHzPsX6oXkzU2qL12kHCH8G8cnZv1rBJh": 25860812.904039,  # Kraken1
