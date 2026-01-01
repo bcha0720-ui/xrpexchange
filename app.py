@@ -15,7 +15,7 @@ import time
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from typing import Dict, List, Optional
-from streamlit import components
+import streamlit.components.v1 as components
 import json
 
 # ============================================================================
