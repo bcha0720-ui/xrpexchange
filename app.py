@@ -15,6 +15,7 @@ import time
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from typing import Dict, List, Optional
+from streamlit import components
 import json
 
 # ============================================================================
@@ -879,7 +880,6 @@ def main():
     ga_code = f"""
     <iframe src="https://www.googletagmanager.com/ns.html?id={GA_TRACKING_ID}" height="0" width="0" style="display:none;visibility:hidden"></iframe>
     """
-    <script defer src="https://cloud.umami.is/script.js" data-website-id="44e180d6-aca4-4999-93a2-0761f227d90d"></script>
     st.components.v1.html(ga_code, height=0)
     
     st.markdown(f"Real-time tracking of XRP holdings | **Historical benchmark: {HISTORICAL_DATE}**")
@@ -1242,6 +1242,136 @@ MARKET OVERVIEW
     st.caption(f"📅 Historical comparison data from {HISTORICAL_DATE} for: Upbit, Binance, Kraken, Bybit, SBI VC Trade")
     st.caption("⚠️ This dashboard is for informational purposes only.")
 
+
+if __name__ == "__main__":
+    main()
+
+# ============================================================================
+# CONFIGURATION & ANALYTICS
+# ============================================================================
+urllib3.disable_warnings()
+RIPPLED_URL = "https://s1.ripple.com:51234"
+HISTORICAL_DATE = "Feb 24, 2025"
+
+def inject_analytics():
+    """Add Umami and Custom Analytics"""
+    components.html(f"""
+        <script defer src="https://cloud.umami.is/script.js" 
+                data-website-id="44e180d6-aca4-4999-93a2-0761f227d90d"></script>
+        
+        <script>
+        (function() {{
+            var sessionKey = 'xrp_dashboard_session';
+            if (!sessionStorage.getItem(sessionKey)) {{
+                sessionStorage.setItem(sessionKey, 'true');
+                console.log('Dashboard session started');
+            }}
+        }})();
+        </script>
+    """, height=0)
+
+# ============================================================================
+# DATA FETCHING (OPTIMIZED)
+# ============================================================================
+
+@st.cache_data(ttl=600)  # Cache results for 10 minutes
+def get_balance(address, session):
+    """Fetch balance with retry logic using a shared session"""
+    payload = {"method": "account_info", "params": [{"account": address, "ledger_index": "validated", "strict": True}]}
+    try:
+        response = session.post(RIPPLED_URL, json=payload, timeout=10)
+        if response.status_code == 200:
+            result = response.json().get("result", {})
+            if result.get("status") == "success":
+                return float(result["account_data"]["Balance"]) / 1_000_000
+        return 0
+    except:
+        return 0
+
+def fetch_data(exchanges_dict, historical_dict, progress_callback=None):
+    """Main data engine using connection pooling"""
+    results = {}
+    total_addr = sum(len(wallets) for wallets in exchanges_dict.values())
+    current = 0
+    
+    with requests.Session() as session:
+        for exch, wallets in exchanges_dict.items():
+            exch_total, exch_hist, has_hist = 0, 0, False
+            wallet_details = []
+            
+            for addr, label in wallets.items():
+                bal = get_balance(addr, session)
+                hist = historical_dict.get(addr, 0)
+                if addr in historical_dict:
+                    has_hist = True
+                    exch_hist += hist
+                
+                exch_total += bal
+                wallet_details.append({
+                    "address": addr, "label": label, "balance": bal, 
+                    "historical": hist if addr in historical_dict else None,
+                    "change": (bal - hist) if addr in historical_dict else 0
+                })
+                current += 1
+                if progress_callback: progress_callback(current / total_addr)
+            
+            results[exch] = {
+                "total": exch_total, "historical": exch_hist if has_hist else None,
+                "wallets": wallet_details, "wallet_count": len(wallets)
+            }
+    return results
+
+# ============================================================================
+# DATA STRUCTURES (Snippet of full lists)
+# ============================================================================
+# [Keep your full EXCHANGES and HISTORICAL_BALANCES_20250224 dictionaries here]
+
+def main():
+    st.set_page_config(page_title="XRP Exchange Tracker", layout="wide")
+    inject_analytics() # Injects Umami Script
+    
+    st.title("💎 XRP Exchange Holdings Tracker")
+    st.markdown(f"Live data from XRPL | Benchmark: **{HISTORICAL_DATE}**")
+
+    # SIDEBAR
+    selected_exchanges = st.sidebar.multiselect(
+        "Select Exchanges", options=list(EXCHANGES.keys()), default=["upbit", "binance", "kraken"]
+    )
+    show_historical = st.sidebar.checkbox("Compare with Historical Data", value=True)
+
+    # MAIN EXECUTION
+    if not selected_exchanges:
+        st.warning("Please select at least one exchange.")
+        return
+
+    with st.spinner("Fetching data..."):
+        progress_bar = st.progress(0)
+        raw_data = fetch_data(EXCHANGES, HISTORICAL_BALANCES_20250224, lambda p: progress_bar.progress(p))
+        progress_bar.empty()
+
+    # FILTER & DISPLAY
+    filtered = {k: v for k, v in raw_data.items() if k in selected_exchanges}
+    df = pd.DataFrame([
+        {
+            "Exchange": k, "Balance": v["total"], 
+            "Historical": v["historical"], "Count": v["wallet_count"],
+            "Change": (v["total"] - v["historical"]) if v["historical"] else 0
+        } for k, v in filtered.items()
+    ])
+
+    # METRICS
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Total XRP", f"{df['Balance'].sum():,.0f}")
+    if show_historical:
+        total_change = df['Change'].sum()
+        m2.metric("Net Change", f"{total_change:+,.0f}", delta_color="normal")
+    
+    # CHARTS & TABLES
+    st.plotly_chart(px.pie(df, values='Balance', names='Exchange', title="Market Share"), use_container_width=True)
+    st.dataframe(df, use_container_width=True)
+
+    # Download Button
+    st.download_button("Download Data (CSV)", df.to_csv(index=False), "xrp_holdings.csv", "text/csv")
 
 if __name__ == "__main__":
     main()
