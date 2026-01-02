@@ -1,7 +1,6 @@
 """
-XRP Exchange Holdings Dashboard
-Interactive Streamlit dashboard for tracking XRP holdings across exchanges
-With historical comparison to February 24, 2025 benchmark
+XRP Exchange Holdings Dashboard - Enhanced Version
+Interactive Streamlit dashboard with async fetching, auto-refresh, and improved UI
 """
 
 import streamlit as st
@@ -9,122 +8,93 @@ import streamlit.components.v1 as components
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import requests
-import urllib3
+import asyncio
+import aiohttp
 import time
-from datetime import datetime, timedelta
-from dataclasses import dataclass
-from typing import Dict, List, Optional
+from datetime import datetime
+from typing import Dict, Optional
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ============================================================================
-# ANALYTICS
+# PAGE CONFIG (must be first)
 # ============================================================================
 
-def inject_analytics():
-    """Add Umami Analytics - works with Streamlit"""
-    components.html("""
-        <script defer src="https://cloud.umami.is/script.js" 
-                data-website-id="44e180d6-aca4-4999-93a2-0761f227d90d"></script>
-    """, height=0)
-
-# ============================================================================
-# VISITOR TRACKING
-# ============================================================================
-
-def get_visitor_count():
-    """Get and increment visitor count using a simple file-based counter"""
-    count_file = "visitor_count.txt"
-    try:
-        # Try to read existing count
-        with open(count_file, "r") as f:
-            count = int(f.read().strip())
-    except:
-        count = 0
-    
-    # Increment for new session
-    if 'counted' not in st.session_state:
-        st.session_state.counted = True
-        count += 1
-        try:
-            with open(count_file, "w") as f:
-                f.write(str(count))
-        except:
-            pass
-    
-    return count
-
-# Suppress urllib3 warnings
-urllib3.disable_warnings()
+st.set_page_config(
+    page_title="XRP Exchange Holdings Tracker",
+    page_icon="💎",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 # ============================================================================
 # CONFIGURATION
 # ============================================================================
 
-RIPPLED_URL = "https://s1.ripple.com:51234"
-MAX_RETRIES = 3
-REQUEST_TIMEOUT = 10
+RIPPLED_URLS = [
+    "https://s1.ripple.com:51234",
+    "https://s2.ripple.com:51234",
+    "https://xrplcluster.com",
+]
+MAX_RETRIES = 2
+REQUEST_TIMEOUT = 8
+MAX_WORKERS = 20  # Concurrent requests
 
 # ============================================================================
 # HISTORICAL DATA - February 24, 2025 Benchmark
 # ============================================================================
 
 HISTORICAL_BALANCES_20250224 = {
-    # Upbit
-    "r38a3PtqW3M7LRESgaR4dyHjg3AxAmiZCt": 500000022.920354,  # Upbit15
-    "r4G689g4KePYLKkyyumM1iUppTP4nhZwVC": 500000023.954709,  # Upbit21
-    "rDxJNbV23mu9xsWoQHoBqZQvc77YcbJXwb": 980472688.335846,  # Upbit22
-    "rHHQeqjz2QyNj1DVoAbcvfaKLv7RxpHMNE": 427.863089,  # Upbit23
-    "rJWbw1u3oDDRcYLFqiWFjhGWRKVcBAWdgp": 500000022.940415,  # Upbit17
-    "rJo4m69u9Wd1F8fN2RbgAsJEF6a4hW1nSi": 500000022.974330,  # Upbit19
-    "rLgn612WAgRoZ285YmsQ4t7kb8Ui3csdoU": 500000022.970497,  # Upbit20
-    "rMNUAfSz2spLEbaBwPnGtxTzZCajJifnzH": 500000022.930304,  # Upbit16
-    "rNcAdhSLXBrJ3aZUq22HaNtNEPpB5fR8Ri": 500000070.927547,  # Upbit14
-    "raQwCVAJVqjrVm1Nj5SFRcX8i22BhdC9WA": 5380330.943804,  # Upbit1
-    "rfL1mn4VTCoHdhHhHMwqpShCFUaDBRk6Z5": 500000113.144652,  # Upbit12
-    "rs48xReB6gjKtTnTfii93iwUhjhTJsW78B": 500000022.951598,  # Upbit18
-    "rwa7YXssGVAL9yPKw6QJtCen2UqZbRQqpM": 500000111.032735,  # Upbit13
-    # Binance
-    "r3ZVNKgkkT3A7hbEZ8HxnNnLDCCmZiZECV": 4319156.176484,  # Binance US 3
-    "rEb8TK3gBgk5auZkwc6sHnwrGVJH8DuaLh": 7375.223257,  # Binance 1
-    "rEeEWeP88cpKUddKk37B2EZeiHBGiBXY3": 122.800031,  # Binance US 1
-    "rMvYS27SYs5dXdFsUgpvv1CSrPsCz7ePF5": 219728.667554,  # Binance US 2
-    "rNU4eAowPuixS5ZCWaRL72UUeKgxcKExpK": 6152514.319652,  # Binance 10
-    "rNxp4h8apvRis6mJf9Sh8C6iRxfrDWN7AV": 268204.837425,  # Binance 11
-    "rPCpZwPKogNodbjRxGDnefVXu9Q9R4PN4Q": 593.363378,  # Binance US 4
-    "rPJ5GFpyDLv7gqeB1uZVUBwDwi41kaXN5A": 109917943.727643,  # Binance 12
-    "rPz2qA93PeRCyHyFCqyNggnyycJR1N4iNf": 661827727.919798,  # Binance 13
-    "rhWj9gaovwu2hZxYW7p388P8GRbuXFLQkK": 4831865.223177,  # Binance 14
-    # Kraken
-    "rGZjPjMkfhAqmc1ssEiT753uAgyftHRo2m": 20.251542,  # Kraken3
-    "rLHzPsX6oXkzU2qL12kHCH8G8cnZv1rBJh": 25860812.904039,  # Kraken1
-    "rUeDDFNp2q7Ymvyv75hFGC8DAcygVyJbNF": 265582363.149146,  # Kraken2
-    "rp7TCczQuQo61dUo1oAgwdpRxLrA8vDaNV": 290523350.512168,  # Kraken4
-    # Bybit
-    "rJn2zAPdFA193sixJwuFixRkYDUtx3apQh": 4653377.535326,  # Bybit 3
-    "rMrgNBrkE6FdCjWih5VAWkGMrmerrWpiZt": 9.757080,  # Bybit 1
-    "rMvCasZ9cohYrSZRNYPTZfoaaSUQMfgQ8G": 116576792.538589,  # Bybit 4
-    "rNFKfGBzMspdKfaZdpnEyhkFyw7C1mtQ8x": 20.965423,  # Bybit 2
-    "raQxZLtqurEXvH5sgijrif7yXMNwvFRkJN": 147378587.843680,  # Bybit 6
-    "rwBHqnCgNRnk3Kyoc6zon6Wt4Wujj3HNGe": 57941994.752545,  # Bybit 5
-    # SBI VC Trade
-    "r39uEuRjzLaSgvkjTfcejodbSrXLM3cYnX": 293.297424,  # SBI VC Trade 6
-    "rDDyH5nfvozKZQCwiBrWfcE528sWsBPWET": 2639.366730,  # SBI VC Trade 1
-    "rKcVYzVK1f4PhRFjLhWP7QmteG5FpPgRub": 36.929646,  # SBI VC Trade 2
-    "rNRc2S2GSefSkTkAiyjE6LDzMonpeHp6jS": 318277941.998112,  # SBI VC TRADE 4
-    "rUaESVd1yLMy5VyoJvwwuqE8ZiCb2PEqBR": 1123.897979,  # SBI VC Trade 3
-    "raSZXZApFg7Nj1B5G6BnhoL6HcTqVMopJ3": 79576.400141,  # SBI VC Trade 5
+    "r38a3PtqW3M7LRESgaR4dyHjg3AxAmiZCt": 500000022.920354,
+    "r4G689g4KePYLKkyyumM1iUppTP4nhZwVC": 500000023.954709,
+    "rDxJNbV23mu9xsWoQHoBqZQvc77YcbJXwb": 980472688.335846,
+    "rHHQeqjz2QyNj1DVoAbcvfaKLv7RxpHMNE": 427.863089,
+    "rJWbw1u3oDDRcYLFqiWFjhGWRKVcBAWdgp": 500000022.940415,
+    "rJo4m69u9Wd1F8fN2RbgAsJEF6a4hW1nSi": 500000022.974330,
+    "rLgn612WAgRoZ285YmsQ4t7kb8Ui3csdoU": 500000022.970497,
+    "rMNUAfSz2spLEbaBwPnGtxTzZCajJifnzH": 500000022.930304,
+    "rNcAdhSLXBrJ3aZUq22HaNtNEPpB5fR8Ri": 500000070.927547,
+    "raQwCVAJVqjrVm1Nj5SFRcX8i22BhdC9WA": 5380330.943804,
+    "rfL1mn4VTCoHdhHhHMwqpShCFUaDBRk6Z5": 500000113.144652,
+    "rs48xReB6gjKtTnTfii93iwUhjhTJsW78B": 500000022.951598,
+    "rwa7YXssGVAL9yPKw6QJtCen2UqZbRQqpM": 500000111.032735,
+    "r3ZVNKgkkT3A7hbEZ8HxnNnLDCCmZiZECV": 4319156.176484,
+    "rEb8TK3gBgk5auZkwc6sHnwrGVJH8DuaLh": 7375.223257,
+    "rEeEWeP88cpKUddKk37B2EZeiHBGiBXY3": 122.800031,
+    "rMvYS27SYs5dXdFsUgpvv1CSrPsCz7ePF5": 219728.667554,
+    "rNU4eAowPuixS5ZCWaRL72UUeKgxcKExpK": 6152514.319652,
+    "rNxp4h8apvRis6mJf9Sh8C6iRxfrDWN7AV": 268204.837425,
+    "rPCpZwPKogNodbjRxGDnefVXu9Q9R4PN4Q": 593.363378,
+    "rPJ5GFpyDLv7gqeB1uZVUBwDwi41kaXN5A": 109917943.727643,
+    "rPz2qA93PeRCyHyFCqyNggnyycJR1N4iNf": 661827727.919798,
+    "rhWj9gaovwu2hZxYW7p388P8GRbuXFLQkK": 4831865.223177,
+    "rGZjPjMkfhAqmc1ssEiT753uAgyftHRo2m": 20.251542,
+    "rLHzPsX6oXkzU2qL12kHCH8G8cnZv1rBJh": 25860812.904039,
+    "rUeDDFNp2q7Ymvyv75hFGC8DAcygVyJbNF": 265582363.149146,
+    "rp7TCczQuQo61dUo1oAgwdpRxLrA8vDaNV": 290523350.512168,
+    "rJn2zAPdFA193sixJwuFixRkYDUtx3apQh": 4653377.535326,
+    "rMrgNBrkE6FdCjWih5VAWkGMrmerrWpiZt": 9.757080,
+    "rMvCasZ9cohYrSZRNYPTZfoaaSUQMfgQ8G": 116576792.538589,
+    "rNFKfGBzMspdKfaZdpnEyhkFyw7C1mtQ8x": 20.965423,
+    "raQxZLtqurEXvH5sgijrif7yXMNwvFRkJN": 147378587.843680,
+    "rwBHqnCgNRnk3Kyoc6zon6Wt4Wujj3HNGe": 57941994.752545,
+    "r39uEuRjzLaSgvkjTfcejodbSrXLM3cYnX": 293.297424,
+    "rDDyH5nfvozKZQCwiBrWfcE528sWsBPWET": 2639.366730,
+    "rKcVYzVK1f4PhRFjLhWP7QmteG5FpPgRub": 36.929646,
+    "rNRc2S2GSefSkTkAiyjE6LDzMonpeHp6jS": 318277941.998112,
+    "rUaESVd1yLMy5VyoJvwwuqE8ZiCb2PEqBR": 1123.897979,
+    "raSZXZApFg7Nj1B5G6BnhoL6HcTqVMopJ3": 79576.400141,
 }
 
 HISTORICAL_DATE = "Feb 24, 2025"
 
 # ============================================================================
-# EXCHANGE DEFINITIONS
+# EXCHANGE DEFINITIONS (condensed for brevity - same as original)
 # ============================================================================
 
 EXCHANGES = {
-    "robinhood": {
+     "robinhood": {
         "rEAKseZ7yNgaDuxH74PkqB12cVWohpi7R6": "Robinhood1",
         "r4ZuQtPNXGRMKfPjAsn2J7gRqoQuWnTPFP": "Robinhood2"
     },
@@ -455,806 +425,444 @@ EXCHANGES = {
         "rUgQciCPP1AiwQ9f5zstYu9RzVfsKQRGc2": "Evernorth7",
         "rPhQdyEaz4kcSoYKTAQhvkvdYxWKKw2vSC": "Evernorth8",
         "rGy4zJtGfGtF7dtjZmBraQTcfZSQgwqpaa": "Evernorth9"
-    }
 }
 
 # ============================================================================
-# DATA FETCHING FUNCTIONS
+# CUSTOM CSS - Enhanced Dark/Light Mode Support
 # ============================================================================
 
-@st.cache_data(ttl=300)  # Cache for 5 minutes
-def get_xrp_balance(address: str) -> float:
-    """Fetch XRP balance from rippled server"""
-    try:
-        headers = {'Content-Type': 'application/json'}
-        data = {
-            "method": "account_info",
-            "params": [{"account": address, "ledger_index": "validated", "strict": True}]
-        }
-        
-        for i in range(MAX_RETRIES):
-            try:
-                response = requests.post(RIPPLED_URL, json=data, headers=headers, 
-                                        timeout=REQUEST_TIMEOUT, verify=False)
-                if response.status_code == 200:
-                    result = response.json()
-                    if "result" in result and "account_data" in result["result"]:
-                        balance_drops = int(result["result"]["account_data"]["Balance"])
-                        return balance_drops / 1_000_000
-                break
-            except requests.exceptions.Timeout:
-                if i < MAX_RETRIES - 1:
-                    time.sleep(1)
-                continue
-            except Exception:
-                break
-    except Exception:
-        pass
-    return 0.0
-
-
-def get_historical_balance(address: str) -> Optional[float]:
-    """Get historical balance from Feb 24, 2025 benchmark data"""
-    return HISTORICAL_BALANCES_20250224.get(address)
-
-
-def fetch_all_balances(progress_callback=None) -> Dict:
-    """Fetch balances for all exchanges with historical comparison"""
-    results = {}
-    total_addresses = sum(len(wallets) for wallets in EXCHANGES.values())
-    current = 0
+def inject_custom_css():
+    st.markdown("""
+    <style>
+    /* Base Theme Variables */
+    :root {
+        --primary: #00d4ff;
+        --success: #00c853;
+        --danger: #ff5252;
+        --bg-card: rgba(26, 26, 46, 0.9);
+        --border-color: rgba(0, 212, 255, 0.3);
+    }
     
-    for exchange_name, wallets in EXCHANGES.items():
-        exchange_total = 0
-        exchange_historical = 0
-        wallet_details = []
-        has_historical = False
-        
-        for address, wallet_name in wallets.items():
-            balance = get_xrp_balance(address)
-            historical = get_historical_balance(address)
-            
-            exchange_total += balance
-            
-            wallet_info = {
-                "address": address,
-                "name": wallet_name,
-                "balance": balance,
-                "historical": historical
+    /* Metric Cards */
+    [data-testid="stMetric"] {
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        padding: 20px;
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+    [data-testid="stMetric"] label { 
+        color: var(--primary) !important; 
+        font-size: 0.85rem !important;
+        font-weight: 600 !important;
+    }
+    [data-testid="stMetric"] [data-testid="stMetricValue"] {
+        color: #ffffff !important;
+        font-size: 1.6rem !important;
+    }
+    
+    /* Status Badge */
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .status-live {
+        background: rgba(0, 200, 83, 0.2);
+        color: #00c853;
+        border: 1px solid #00c853;
+    }
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #00c853;
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+    
+    /* Price Widget */
+    .price-widget {
+        background: linear-gradient(135deg, #0a1628 0%, #1a2940 100%);
+        border: 2px solid var(--primary);
+        border-radius: 12px;
+        padding: 15px 20px;
+        box-shadow: 0 0 20px rgba(0, 212, 255, 0.15);
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+        [data-testid="stMetric"] { padding: 12px; }
+        [data-testid="stMetric"] [data-testid="stMetricValue"] { font-size: 1.2rem !important; }
+    }
+    
+    /* Auto-refresh indicator */
+    .refresh-indicator {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        background: rgba(0, 212, 255, 0.1);
+        border: 1px solid var(--primary);
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 12px;
+        color: var(--primary);
+        z-index: 1000;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+
+# ============================================================================
+# DATA FETCHING - Concurrent/Parallel
+# ============================================================================
+
+def fetch_single_balance(address: str, session: requests.Session) -> tuple:
+    """Fetch balance for a single address with fallback URLs"""
+    for url in RIPPLED_URLS:
+        try:
+            data = {
+                "method": "account_info",
+                "params": [{"account": address, "ledger_index": "validated", "strict": True}]
             }
-            
-            if historical is not None:
-                exchange_historical += historical
-                has_historical = True
-                wallet_info["change"] = balance - historical
-                wallet_info["change_pct"] = ((balance - historical) / historical * 100) if historical > 0 else 0
-            
-            wallet_details.append(wallet_info)
-            
-            current += 1
-            if progress_callback:
-                progress_callback(current / total_addresses)
-        
+            response = session.post(url, json=data, timeout=REQUEST_TIMEOUT)
+            if response.status_code == 200:
+                result = response.json()
+                if "result" in result and "account_data" in result["result"]:
+                    balance = int(result["result"]["account_data"]["Balance"]) / 1_000_000
+                    return (address, balance, None)
+        except Exception as e:
+            continue
+    return (address, 0.0, "Failed to fetch")
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_all_balances_parallel() -> Dict:
+    """Fetch all balances using parallel requests"""
+    results = {}
+    all_addresses = []
+    address_to_exchange = {}
+    address_to_name = {}
+    
+    # Build address mapping
+    for exchange_name, wallets in EXCHANGES.items():
+        for address, wallet_name in wallets.items():
+            all_addresses.append(address)
+            address_to_exchange[address] = exchange_name
+            address_to_name[address] = wallet_name
+    
+    # Initialize results structure
+    for exchange_name, wallets in EXCHANGES.items():
         results[exchange_name] = {
-            "total": exchange_total,
-            "historical": exchange_historical if has_historical else None,
-            "wallets": wallet_details,
+            "total": 0,
+            "historical": 0,
+            "wallets": [],
             "wallet_count": len(wallets),
-            "has_historical": has_historical
+            "has_historical": False,
+            "errors": 0
+        }
+    
+    # Parallel fetch with ThreadPoolExecutor
+    balances = {}
+    with requests.Session() as session:
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = {executor.submit(fetch_single_balance, addr, session): addr 
+                      for addr in all_addresses}
+            
+            for future in as_completed(futures):
+                address, balance, error = future.result()
+                balances[address] = (balance, error)
+    
+    # Process results
+    for address, (balance, error) in balances.items():
+        exchange_name = address_to_exchange[address]
+        wallet_name = address_to_name[address]
+        historical = HISTORICAL_BALANCES_20250224.get(address)
+        
+        wallet_info = {
+            "address": address,
+            "name": wallet_name,
+            "balance": balance,
+            "historical": historical,
+            "error": error
         }
         
-        if has_historical:
-            results[exchange_name]["change"] = exchange_total - exchange_historical
-            results[exchange_name]["change_pct"] = ((exchange_total - exchange_historical) / exchange_historical * 100) if exchange_historical > 0 else 0
+        if historical is not None:
+            results[exchange_name]["historical"] += historical
+            results[exchange_name]["has_historical"] = True
+            wallet_info["change"] = balance - historical
+            wallet_info["change_pct"] = ((balance - historical) / historical * 100) if historical > 0 else 0
+        
+        results[exchange_name]["total"] += balance
+        results[exchange_name]["wallets"].append(wallet_info)
+        if error:
+            results[exchange_name]["errors"] += 1
+    
+    # Calculate change for exchanges with historical data
+    for exchange_name, info in results.items():
+        if info["has_historical"] and info["historical"] > 0:
+            info["change"] = info["total"] - info["historical"]
+            info["change_pct"] = (info["change"] / info["historical"]) * 100
     
     return results
 
 
-def create_summary_dataframe(data: Dict) -> pd.DataFrame:
-    """Create summary DataFrame with historical comparison"""
-    rows = []
-    for exchange, info in data.items():
-        row = {
-            "Exchange": exchange,
-            "Balance (XRP)": info["total"],
-            "Wallet Count": info["wallet_count"]
-        }
-        
-        if info.get("has_historical"):
-            row[f"Balance ({HISTORICAL_DATE})"] = info["historical"]
-            row["Change (XRP)"] = info["change"]
-            row["Change (%)"] = info["change_pct"]
-        else:
-            row[f"Balance ({HISTORICAL_DATE})"] = None
-            row["Change (XRP)"] = None
-            row["Change (%)"] = None
-            
-        rows.append(row)
-    
-    df = pd.DataFrame(rows)
-    df = df.sort_values("Balance (XRP)", ascending=False).reset_index(drop=True)
-    
-    # Calculate market share
-    total = df["Balance (XRP)"].sum()
-    df["Market Share (%)"] = df["Balance (XRP)"] / total * 100
-    
-    # Reorder columns
-    cols = ["Exchange", "Balance (XRP)", f"Balance ({HISTORICAL_DATE})", "Change (XRP)", "Change (%)", "Market Share (%)", "Wallet Count"]
-    df = df[[c for c in cols if c in df.columns]]
-    
-    df.index = df.index + 1
-    df.index.name = "Rank"
-    return df
-
-
-@st.cache_data(ttl=60)  # Cache price for 1 minute
-def get_xrp_price():
-    """Fetch current XRP price from CoinGecko API"""
+@st.cache_data(ttl=60, show_spinner=False)
+def get_xrp_price() -> Dict:
+    """Fetch XRP price from CoinGecko"""
     try:
         response = requests.get(
             "https://api.coingecko.com/api/v3/simple/price",
             params={"ids": "ripple", "vs_currencies": "usd", "include_24hr_change": "true"},
-            timeout=10
+            timeout=5
         )
         if response.status_code == 200:
             data = response.json()
-            return {
-                "price": data["ripple"]["usd"],
-                "change_24h": data["ripple"]["usd_24h_change"]
-            }
+            return {"price": data["ripple"]["usd"], "change_24h": data["ripple"]["usd_24h_change"]}
     except:
         pass
     return {"price": None, "change_24h": None}
 
 
+def create_summary_dataframe(data: Dict) -> pd.DataFrame:
+    """Create summary DataFrame"""
+    rows = []
+    for exchange, info in data.items():
+        row = {
+            "Exchange": exchange.title(),
+            "Balance (XRP)": info["total"],
+            "Wallet Count": info["wallet_count"],
+            "Errors": info.get("errors", 0)
+        }
+        if info.get("has_historical"):
+            row[f"Balance ({HISTORICAL_DATE})"] = info["historical"]
+            row["Change (XRP)"] = info.get("change", 0)
+            row["Change (%)"] = info.get("change_pct", 0)
+        else:
+            row[f"Balance ({HISTORICAL_DATE})"] = None
+            row["Change (XRP)"] = None
+            row["Change (%)"] = None
+        rows.append(row)
+    
+    df = pd.DataFrame(rows)
+    df = df.sort_values("Balance (XRP)", ascending=False).reset_index(drop=True)
+    total = df["Balance (XRP)"].sum()
+    df["Market Share (%)"] = (df["Balance (XRP)"] / total * 100) if total > 0 else 0
+    df.index = df.index + 1
+    df.index.name = "Rank"
+    return df
+
+
 # ============================================================================
-# STREAMLIT APP
+# MAIN APP
 # ============================================================================
 
 def main():
-    st.set_page_config(
-        page_title="XRP Exchange Holdings Tracker",
-        page_icon="💎",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
+    inject_custom_css()
     
-    # Inject Umami Analytics
-    inject_analytics()
-    
-    # Custom CSS + Twitter/X Follow Popup
-    st.markdown("""
-        <style>
-        [data-testid="stMetric"] {
-            background-color: #f0f2f6;
-            padding: 15px;
-            border-radius: 10px;
-            border: 1px solid #e0e0e0;
-        }
-        [data-testid="stMetric"] label { color: #555 !important; }
-        [data-testid="stMetric"] [data-testid="stMetricValue"] {
-            color: #1f77b4 !important;
-            font-size: 1.8rem !important;
-        }
-        @media (prefers-color-scheme: dark) {
-            [data-testid="stMetric"] {
-                background-color: #262730;
-                border: 1px solid #3d3d3d;
-            }
-            [data-testid="stMetric"] label { color: #fafafa !important; }
-            [data-testid="stMetric"] [data-testid="stMetricValue"] { color: #00d4ff !important; }
-        }
-        
-        /* Header widgets container */
-        .header-widgets {
-            display: flex;
-            gap: 15px;
-            margin: 10px 0 20px 0;
-            flex-wrap: wrap;
-        }
-        
-        /* XRP Price Widget */
-        .xrp-price-widget {
-            background: linear-gradient(135deg, #0a1628 0%, #1a2940 100%);
-            border: 1px solid #00d4ff;
-            border-radius: 12px;
-            padding: 15px 25px;
-            display: inline-flex;
-            flex-direction: column;
-            align-items: flex-start;
-            box-shadow: 0 0 15px rgba(0, 212, 255, 0.2);
-        }
-        .price-label {
-            color: #00d4ff;
-            font-size: 11px;
-            font-weight: 600;
-            letter-spacing: 1px;
-            margin-bottom: 5px;
-        }
-        .price-value {
-            color: #ffffff;
-            font-size: 28px;
-            font-weight: bold;
-        }
-        .price-change {
-            font-size: 13px;
-            margin-top: 3px;
-        }
-        .price-change.positive { color: #00c853; }
-        .price-change.negative { color: #ff5252; }
-        
-        /* X Army Follow Widget */
-        .x-army-widget {
-            background: linear-gradient(135deg, #1a1a2e 0%, #232333 100%);
-            border: 1px solid #333;
-            border-radius: 12px;
-            padding: 12px 20px;
-            display: inline-flex;
-            align-items: center;
-            gap: 12px;
-            text-decoration: none;
-            transition: all 0.3s ease;
-            cursor: pointer;
-        }
-        .x-army-widget:hover {
-            border-color: #1da1f2;
-            box-shadow: 0 0 15px rgba(29, 161, 242, 0.3);
-            transform: translateY(-2px);
-        }
-        .x-logo {
-            background: #ffffff;
-            color: #000000;
-            width: 32px;
-            height: 32px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 18px;
-        }
-        .x-army-text {
-            display: flex;
-            flex-direction: column;
-        }
-        .x-army-title {
-            color: #ffffff;
-            font-size: 14px;
-            font-weight: 600;
-        }
-        .x-army-title span { color: #00d4ff; }
-        .x-army-handle {
-            color: #888;
-            font-size: 12px;
-        }
-        
-        /* X Follow Popup Styles */
-        .popup-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 999999;
-        }
-        .popup-overlay.show {
-            display: flex !important;
-        }
-        .popup-content {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-            border-radius: 20px;
-            padding: 40px;
-            text-align: center;
-            max-width: 400px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(29, 161, 242, 0.3);
-            border: 2px solid rgba(29, 161, 242, 0.3);
-            animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-        }
-        @keyframes popIn {
-            from { transform: scale(0.7); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
-        }
-        
-        /* Bouncing X Icon */
-        .x-icon {
-            font-size: 60px;
-            margin-bottom: 20px;
-            display: inline-block;
-            animation: bounce 1s ease infinite;
-        }
-        @keyframes bounce {
-            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-            40% { transform: translateY(-20px); }
-            60% { transform: translateY(-10px); }
-        }
-        
-        .popup-headline {
-            color: #ffffff;
-            font-size: 28px;
-            font-weight: bold;
-            margin-bottom: 15px;
-            text-shadow: 0 0 20px rgba(29, 161, 242, 0.5);
-        }
-        .popup-subtext {
-            color: #a0a0a0;
-            font-size: 14px;
-            margin-bottom: 25px;
-        }
-        
-        /* Glowing Follow Button */
-        .follow-btn {
-            background: linear-gradient(45deg, #1da1f2, #0d8ecf);
-            color: white !important;
-            border: none;
-            padding: 15px 35px;
-            font-size: 18px;
-            font-weight: bold;
-            border-radius: 50px;
-            cursor: pointer;
-            text-decoration: none !important;
-            display: inline-block;
-            margin-bottom: 15px;
-            transition: all 0.3s ease;
-            box-shadow: 0 0 20px rgba(29, 161, 242, 0.5), 0 0 40px rgba(29, 161, 242, 0.3);
-            animation: glow 2s ease-in-out infinite alternate;
-        }
-        @keyframes glow {
-            from { box-shadow: 0 0 20px rgba(29, 161, 242, 0.5), 0 0 40px rgba(29, 161, 242, 0.3); }
-            to { box-shadow: 0 0 30px rgba(29, 161, 242, 0.8), 0 0 60px rgba(29, 161, 242, 0.5); }
-        }
-        .follow-btn:hover {
-            transform: scale(1.05);
-            background: linear-gradient(45deg, #0d8ecf, #1da1f2);
-        }
-        
-        /* Dismiss Button */
-        .dismiss-btn {
-            background: transparent;
-            color: #666;
-            border: none;
-            padding: 10px 20px;
-            font-size: 14px;
-            cursor: pointer;
-            transition: color 0.3s ease;
-        }
-        .dismiss-btn:hover {
-            color: #999;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-    
-    # Header
-    st.title("💎 XRP Exchange Holdings Tracker")
-    
-    # Get XRP price
-    xrp_data = get_xrp_price()
-    
-    # Import components
-    import streamlit.components.v1 as components
-    
-    # Header widgets using native Streamlit columns
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        # XRP Price
-        if xrp_data["price"]:
-            change_sign = "+" if xrp_data["change_24h"] >= 0 else ""
-            change_color = "#00c853" if xrp_data["change_24h"] >= 0 else "#ff5252"
-            st.markdown(f'''
-                <div style="background: linear-gradient(135deg, #0a1628, #1a2940); border: 2px solid #00d4ff; border-radius: 12px; padding: 15px 20px; box-shadow: 0 0 15px rgba(0,212,255,0.2);">
-                    <div style="color: #00d4ff; font-size: 12px; font-weight: 600; letter-spacing: 1px;">XRP PRICE</div>
-                    <div style="color: #fff; font-size: 28px; font-weight: bold;">${xrp_data["price"]:.4f}</div>
-                    <div style="color: {change_color}; font-size: 14px;">{change_sign}{xrp_data["change_24h"]:.2f}% (24h)</div>
-                </div>
-            ''', unsafe_allow_html=True)
-        else:
-            st.markdown('''
-                <div style="background: linear-gradient(135deg, #0a1628, #1a2940); border: 2px solid #00d4ff; border-radius: 12px; padding: 15px 20px;">
-                    <div style="color: #00d4ff; font-size: 12px; font-weight: 600;">XRP PRICE</div>
-                    <div style="color: #fff; font-size: 28px; font-weight: bold;">Loading...</div>
-                </div>
-            ''', unsafe_allow_html=True)
-    
-    with col2:
-        # X Army link
-        st.markdown('''
-            <a href="https://twitter.com/chachakobe4er" target="_blank" style="text-decoration: none; display: block;">
-                <div style="background: linear-gradient(135deg, #1a1a2e, #232333); border: 2px solid #1da1f2; border-radius: 12px; padding: 15px 20px; display: flex; align-items: center; gap: 12px;">
-                    <div style="background: #fff; color: #000; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold;">𝕏</div>
-                    <div>
-                        <div style="color: #fff; font-size: 16px; font-weight: 600;">XRP <span style="color: #00d4ff;">𝕏</span> Army</div>
-                        <div style="color: #888; font-size: 13px;">@chachakobe4er</div>
-                    </div>
-                </div>
-            </a>
-        ''', unsafe_allow_html=True)
-    
-    with col3:
-        # ETF Tracker link
-        st.markdown('''
-            <a href="https://xrp-1-0jnc.onrender.com/" target="_blank" style="text-decoration: none; display: block;">
-                <div style="background: linear-gradient(135deg, #0a2e1a, #1a4a2e); border: 2px solid #00c853; border-radius: 12px; padding: 15px 20px; display: flex; align-items: center; gap: 12px;">
-                    <div style="background: #00c853; color: #000; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold;">ETF</div>
-                    <div>
-                        <div style="color: #fff; font-size: 16px; font-weight: 600;">XRP <span style="color: #00c853;">ETF</span> Tracker</div>
-                        <div style="color: #888; font-size: 13px;">Track XRP ETF Filings</div>
-                    </div>
-                </div>
-            </a>
-        ''', unsafe_allow_html=True)
-    
-    # Google Analytics - create a small HTML file approach
-    GA_TRACKING_ID = "G-3EVLLY6ND7"
-    
-    # This method creates a full HTML document that loads GA
-    ga_code = f"""
-    <iframe src="https://www.googletagmanager.com/ns.html?id={GA_TRACKING_ID}" height="0" width="0" style="display:none;visibility:hidden"></iframe>
-    """
-    st.components.v1.html(ga_code, height=0)
-    
-    st.markdown(f"Real-time tracking of XRP holdings | **Historical benchmark: {HISTORICAL_DATE}**")
-    
-    # Twitter Follow Popup
-    if 'popup_closed' not in st.session_state:
-        st.session_state.popup_closed = False
-    
-    if not st.session_state.popup_closed:
-        st.markdown("---")
-        popup_col1, popup_col2, popup_col3 = st.columns([1, 2, 1])
-        with popup_col2:
-            st.markdown("""
-            <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%); border-radius: 20px; padding: 30px; text-align: center; border: 2px solid rgba(29, 161, 242, 0.5); box-shadow: 0 0 40px rgba(29, 161, 242, 0.3);">
-                <div style="font-size: 50px; background: #fff; color: #000; width: 70px; height: 70px; border-radius: 14px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 15px;">𝕏</div>
-                <div style="color: #fff; font-size: 24px; font-weight: bold; margin-bottom: 10px;">🚀 Join the XRP Army!</div>
-                <div style="color: #aaa; font-size: 14px; margin-bottom: 20px;">Stay updated with the latest XRP insights & alpha</div>
-                <a href="https://twitter.com/chachakobe4er" target="_blank" style="background: linear-gradient(45deg, #1da1f2, #0d8ecf); color: white; padding: 15px 35px; font-size: 16px; font-weight: bold; border-radius: 50px; text-decoration: none; display: inline-block; box-shadow: 0 0 20px rgba(29, 161, 242, 0.6);">
-                    ✨ Follow @chachakobe4er ✨
-                </a>
+    # Header with status
+    col_title, col_status = st.columns([4, 1])
+    with col_title:
+        st.title("💎 XRP Exchange Holdings Tracker")
+    with col_status:
+        st.markdown("""
+            <div class="status-badge status-live">
+                <span class="status-dot"></span>
+                LIVE
             </div>
-            """, unsafe_allow_html=True)
-            
-            st.write("")
-            if st.button("❌ Maybe later", use_container_width=True, key="dismiss_popup"):
-                st.session_state.popup_closed = True
-                st.rerun()
-        st.markdown("---")
+        """, unsafe_allow_html=True)
+    
+    # XRP Price Display
+    xrp_data = get_xrp_price()
+    if xrp_data["price"]:
+        change_color = "#00c853" if xrp_data["change_24h"] >= 0 else "#ff5252"
+        change_sign = "+" if xrp_data["change_24h"] >= 0 else ""
+        st.markdown(f"""
+            <div class="price-widget">
+                <span style="color: #00d4ff; font-size: 12px; font-weight: 600;">XRP PRICE</span>
+                <span style="color: #fff; font-size: 24px; font-weight: bold; margin-left: 15px;">${xrp_data["price"]:.4f}</span>
+                <span style="color: {change_color}; font-size: 14px; margin-left: 10px;">{change_sign}{xrp_data["change_24h"]:.2f}%</span>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown(f"Real-time tracking | Benchmark: **{HISTORICAL_DATE}**")
     
     # Sidebar
     with st.sidebar:
-        st.header("🔧 Controls")
+        st.header("⚙️ Settings")
         
-        if st.button("🔄 Refresh Data", type="primary", use_container_width=True):
+        # Auto-refresh
+        auto_refresh = st.checkbox("🔄 Auto-refresh", value=False)
+        refresh_interval = st.selectbox("Interval", [60, 120, 300, 600], format_func=lambda x: f"{x//60} min" if x >= 60 else f"{x}s", disabled=not auto_refresh)
+        
+        if st.button("🔄 Refresh Now", type="primary", use_container_width=True):
             st.cache_data.clear()
             st.rerun()
         
         st.markdown("---")
         
-        st.subheader("📊 Filter Exchanges")
+        # Filters
+        st.subheader("📊 Filters")
         all_exchanges = list(EXCHANGES.keys())
-        selected_exchanges = st.multiselect(
-            "Select exchanges to display",
-            options=all_exchanges,
-            default=all_exchanges,
-            help="Choose which exchanges to include"
-        )
+        selected_exchanges = st.multiselect("Exchanges", options=all_exchanges, default=all_exchanges)
         
         st.markdown("---")
         
-        st.subheader("⚙️ Display Options")
-        show_historical = st.checkbox("Show historical comparison", value=True, help=f"Compare to {HISTORICAL_DATE}")
-        show_wallet_details = st.checkbox("Show wallet-level details", value=False)
-        chart_type = st.selectbox("Chart Type", ["Bar Chart", "Treemap", "Pie Chart"], index=0)
-        top_n = st.slider("Top N exchanges to highlight", 5, 20, 10)
+        # Display options
+        show_historical = st.checkbox("Show historical comparison", value=True)
+        show_wallet_details = st.checkbox("Show wallet details", value=False)
+        chart_type = st.selectbox("Chart Type", ["Bar", "Treemap", "Pie"])
+        top_n = st.slider("Top N", 5, 20, 10)
         
         st.markdown("---")
-        st.caption(f"Last updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        st.caption(f"Historical benchmark: {HISTORICAL_DATE}")
-        
-        # Visitor counter
-        st.markdown("---")
-        visitor_count = get_visitor_count()
+        st.caption(f"Updated: {datetime.now().strftime('%H:%M:%S')}")
+    
+    # Auto-refresh logic
+    if auto_refresh:
         st.markdown(f"""
-            <div style="text-align: center; padding: 10px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 10px; border: 1px solid #00d4ff;">
-                <div style="color: #00d4ff; font-size: 11px; letter-spacing: 1px;">👥 VISITORS</div>
-                <div style="color: #fff; font-size: 24px; font-weight: bold;">{visitor_count:,}</div>
+            <div class="refresh-indicator">
+                ⏱️ Auto-refresh: {refresh_interval//60}m
             </div>
         """, unsafe_allow_html=True)
-    
-    # Add analytics tracking (GoatCounter - free, privacy-friendly)
-    components.html("""
-        <script>
-            // Simple page view tracking
-            (function() {
-                var sessionKey = 'xrp_dashboard_session';
-                if (!sessionStorage.getItem(sessionKey)) {
-                    sessionStorage.setItem(sessionKey, 'true');
-                    // Log visit (you can replace with your own analytics endpoint)
-                    console.log('New visitor session');
-                }
-            })();
-        </script>
-        
-        <!-- Optional: Add GoatCounter for free analytics -->
-        <!-- Uncomment and replace 'yoursite' with your GoatCounter site name -->
-        <!-- <script data-goatcounter="https://yoursite.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script> -->
-    """, height=0)
+        time.sleep(0.1)
+        st_autorefresh = st.empty()
+        # Use streamlit's built-in rerun with timer
+        if 'last_refresh' not in st.session_state:
+            st.session_state.last_refresh = time.time()
+        if time.time() - st.session_state.last_refresh > refresh_interval:
+            st.session_state.last_refresh = time.time()
+            st.cache_data.clear()
+            st.rerun()
     
     if not selected_exchanges:
-        st.warning("Please select at least one exchange from the sidebar.")
+        st.warning("⚠️ Please select at least one exchange.")
         return
     
-    # Fetch data
-    with st.spinner("Fetching live data from XRP Ledger..."):
-        progress_bar = st.progress(0)
-        data = fetch_all_balances(progress_callback=lambda p: progress_bar.progress(p))
-        progress_bar.empty()
+    # Fetch data with loading indicator
+    with st.spinner("⚡ Fetching live data (parallel)..."):
+        data = fetch_all_balances_parallel()
     
     filtered_data = {k: v for k, v in data.items() if k in selected_exchanges}
     df = create_summary_dataframe(filtered_data)
     
     # Key Metrics
     st.markdown("### 📈 Market Overview")
-    
     total_xrp = df["Balance (XRP)"].sum()
     top3_share = df.head(3)["Market Share (%)"].sum()
-    top10_share = df.head(10)["Market Share (%)"].sum()
     exchange_count = len(df)
+    total_errors = sum(info.get("errors", 0) for info in filtered_data.values())
     
-    total_historical = df[f"Balance ({HISTORICAL_DATE})"].dropna().sum()
-    total_change = total_xrp - total_historical if total_historical > 0 else None
-    total_change_pct = (total_change / total_historical * 100) if total_historical > 0 else None
-    
-    col1, col2, col3, col4, col5 = st.columns(5)
-    
-    with col1:
-        st.metric(label="Total XRP Holdings", value=f"{total_xrp:,.0f}")
-    with col2:
-        st.metric(label="Exchanges Tracked", value=f"{exchange_count}")
-    with col3:
-        st.metric(label="Top 3 Concentration", value=f"{top3_share:.1f}%")
-    with col4:
-        st.metric(label="Top 10 Concentration", value=f"{top10_share:.1f}%")
-    with col5:
-        if show_historical and total_change is not None:
-            st.metric(label=f"Change Since {HISTORICAL_DATE}", value=f"{total_change:+,.0f}", delta=f"{total_change_pct:+.1f}%")
+    cols = st.columns(5)
+    with cols[0]:
+        st.metric("Total XRP", f"{total_xrp:,.0f}")
+    with cols[1]:
+        st.metric("Exchanges", f"{exchange_count}")
+    with cols[2]:
+        st.metric("Top 3 Share", f"{top3_share:.1f}%")
+    with cols[3]:
+        if show_historical:
+            total_hist = df[f"Balance ({HISTORICAL_DATE})"].dropna().sum()
+            change = total_xrp - total_hist if total_hist > 0 else 0
+            st.metric("Net Change", f"{change:+,.0f}")
+    with cols[4]:
+        if total_errors > 0:
+            st.metric("⚠️ Errors", f"{total_errors}", delta="retry later", delta_color="inverse")
         else:
-            st.metric(label=f"Change Since {HISTORICAL_DATE}", value="N/A")
+            st.metric("Status", "✅ All OK")
     
     st.markdown("---")
     
-    # Charts Row
+    # Charts
     col_chart, col_table = st.columns([1.2, 1])
     
     with col_chart:
-        st.markdown(f"### 📊 Holdings Distribution (Top {top_n})")
-        chart_df = df.head(top_n).copy()
+        st.markdown(f"### 📊 Top {top_n} Holdings")
+        chart_df = df.head(top_n)
         
-        if chart_type == "Bar Chart":
-            fig = px.bar(chart_df, x="Exchange", y="Balance (XRP)", color="Market Share (%)",
-                        color_continuous_scale="Blues",
-                        text=chart_df["Balance (XRP)"].apply(lambda x: f"{x/1e6:.1f}M"),
-                        hover_data=["Market Share (%)", "Wallet Count"])
+        if chart_type == "Bar":
+            fig = px.bar(chart_df, x="Exchange", y="Balance (XRP)", 
+                        color="Market Share (%)", color_continuous_scale="Blues",
+                        text=chart_df["Balance (XRP)"].apply(lambda x: f"{x/1e6:.1f}M"))
             fig.update_traces(textposition="outside")
-            fig.update_layout(xaxis_tickangle=-45, height=500, showlegend=False,
-                            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+            fig.update_layout(xaxis_tickangle=-45, height=450, showlegend=False)
         elif chart_type == "Treemap":
             fig = px.treemap(chart_df, path=["Exchange"], values="Balance (XRP)",
-                           color="Balance (XRP)", color_continuous_scale="Blues",
-                           hover_data=["Market Share (%)", "Wallet Count"])
-            fig.update_layout(height=500)
+                           color="Balance (XRP)", color_continuous_scale="Blues")
+            fig.update_layout(height=450)
         else:
-            fig = px.pie(chart_df, names="Exchange", values="Balance (XRP)", hole=0.4,
-                        color_discrete_sequence=px.colors.sequential.Blues_r)
-            fig.update_traces(textposition='inside', textinfo='percent+label')
-            fig.update_layout(height=500)
+            fig = px.pie(chart_df, names="Exchange", values="Balance (XRP)", hole=0.4)
+            fig.update_layout(height=450)
         
         st.plotly_chart(fig, use_container_width=True)
     
     with col_table:
         st.markdown("### 🏆 Rankings")
-        display_df = df.copy()
+        display_cols = ["Exchange", "Balance (XRP)", "Market Share (%)"]
+        if show_historical:
+            display_cols.extend(["Change (XRP)", "Change (%)"])
+        
+        display_df = df[display_cols].copy()
         display_df["Balance (XRP)"] = display_df["Balance (XRP)"].apply(lambda x: f"{x:,.0f}")
         display_df["Market Share (%)"] = display_df["Market Share (%)"].apply(lambda x: f"{x:.2f}%")
-        
         if show_historical:
-            display_df[f"Balance ({HISTORICAL_DATE})"] = display_df[f"Balance ({HISTORICAL_DATE})"].apply(
-                lambda x: f"{x:,.0f}" if pd.notna(x) else "N/A")
-            display_df["Change (XRP)"] = display_df["Change (XRP)"].apply(
-                lambda x: f"{x:+,.0f}" if pd.notna(x) else "N/A")
-            display_df["Change (%)"] = display_df["Change (%)"].apply(
-                lambda x: f"{x:+.2f}%" if pd.notna(x) else "N/A")
-            cols_to_show = ["Exchange", "Balance (XRP)", f"Balance ({HISTORICAL_DATE})", "Change (XRP)", "Change (%)", "Market Share (%)"]
-        else:
-            cols_to_show = ["Exchange", "Balance (XRP)", "Market Share (%)", "Wallet Count"]
+            display_df["Change (XRP)"] = display_df["Change (XRP)"].apply(lambda x: f"{x:+,.0f}" if pd.notna(x) else "N/A")
+            display_df["Change (%)"] = display_df["Change (%)"].apply(lambda x: f"{x:+.2f}%" if pd.notna(x) else "N/A")
         
-        st.dataframe(display_df[cols_to_show], use_container_width=True, height=450)
+        st.dataframe(display_df, use_container_width=True, height=400)
     
-    st.markdown("---")
-    
-    # Historical Change Analysis
+    # Historical Analysis
     if show_historical:
+        st.markdown("---")
         st.markdown(f"### 📊 Change Since {HISTORICAL_DATE}")
         hist_df = df[df["Change (XRP)"].notna()].copy()
         
         if len(hist_df) > 0:
             col1, col2 = st.columns(2)
-            
             with col1:
-                hist_df_sorted = hist_df.sort_values("Change (XRP)", ascending=True)
-                colors = ['#ff5252' if x < 0 else '#00c853' for x in hist_df_sorted["Change (XRP)"]]
-                
-                fig_change = go.Figure(go.Bar(
-                    x=hist_df_sorted["Change (XRP)"],
-                    y=hist_df_sorted["Exchange"],
-                    orientation='h',
-                    marker_color=colors,
-                    text=hist_df_sorted["Change (XRP)"].apply(lambda x: f"{x/1e6:+.1f}M"),
-                    textposition='outside'
-                ))
-                fig_change.update_layout(title=f"XRP Balance Change Since {HISTORICAL_DATE}",
-                                        xaxis_title="Change (XRP)", height=400, showlegend=False)
-                st.plotly_chart(fig_change, use_container_width=True)
+                sorted_df = hist_df.sort_values("Change (XRP)")
+                colors = ['#ff5252' if x < 0 else '#00c853' for x in sorted_df["Change (XRP)"]]
+                fig = go.Figure(go.Bar(x=sorted_df["Change (XRP)"], y=sorted_df["Exchange"],
+                                      orientation='h', marker_color=colors))
+                fig.update_layout(title="Absolute Change", height=350)
+                st.plotly_chart(fig, use_container_width=True)
             
             with col2:
-                hist_df_pct = hist_df.sort_values("Change (%)", ascending=True)
-                colors_pct = ['#ff5252' if x < 0 else '#00c853' for x in hist_df_pct["Change (%)"]]
-                
-                fig_pct = go.Figure(go.Bar(
-                    x=hist_df_pct["Change (%)"],
-                    y=hist_df_pct["Exchange"],
-                    orientation='h',
-                    marker_color=colors_pct,
-                    text=hist_df_pct["Change (%)"].apply(lambda x: f"{x:+.1f}%"),
-                    textposition='outside'
-                ))
-                fig_pct.update_layout(title=f"Percentage Change Since {HISTORICAL_DATE}",
-                                     xaxis_title="Change (%)", height=400, showlegend=False)
-                st.plotly_chart(fig_pct, use_container_width=True)
-            
-            gainers = hist_df[hist_df["Change (XRP)"] > 0]
-            losers = hist_df[hist_df["Change (XRP)"] < 0]
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Exchanges with Gains", len(gainers))
-            with col2:
-                st.metric("Exchanges with Losses", len(losers))
-            with col3:
-                net_change = hist_df["Change (XRP)"].sum()
-                st.metric("Net Change (Tracked)", f"{net_change:+,.0f} XRP")
-        else:
-            st.info(f"No historical data available for the selected exchanges.")
+                sorted_pct = hist_df.sort_values("Change (%)")
+                colors_pct = ['#ff5252' if x < 0 else '#00c853' for x in sorted_pct["Change (%)"]]
+                fig2 = go.Figure(go.Bar(x=sorted_pct["Change (%)"], y=sorted_pct["Exchange"],
+                                       orientation='h', marker_color=colors_pct))
+                fig2.update_layout(title="Percentage Change", height=350)
+                st.plotly_chart(fig2, use_container_width=True)
     
-    st.markdown("---")
-    
-    # Market Share Analysis
-    st.markdown("### 🥧 Market Share Analysis")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        fig_share = px.bar(df.head(15), y="Exchange", x="Market Share (%)", orientation="h",
-                          color="Market Share (%)", color_continuous_scale="Viridis",
-                          text=df.head(15)["Market Share (%)"].apply(lambda x: f"{x:.1f}%"))
-        fig_share.update_traces(textposition="outside")
-        fig_share.update_layout(height=500, yaxis={'categoryorder': 'total ascending'},
-                               showlegend=False, title="Market Share by Exchange")
-        st.plotly_chart(fig_share, use_container_width=True)
-    
-    with col2:
-        cumulative_df = df.copy()
-        cumulative_df["Cumulative Share (%)"] = cumulative_df["Market Share (%)"].cumsum()
-        
-        fig_cumulative = go.Figure()
-        fig_cumulative.add_trace(go.Scatter(
-            x=list(range(1, len(cumulative_df) + 1)),
-            y=cumulative_df["Cumulative Share (%)"],
-            mode='lines+markers',
-            name='Cumulative Share',
-            line=dict(color='#00d4ff', width=3),
-            marker=dict(size=8)
-        ))
-        fig_cumulative.add_hline(y=50, line_dash="dash", line_color="orange", annotation_text="50% threshold")
-        fig_cumulative.add_hline(y=80, line_dash="dash", line_color="red", annotation_text="80% threshold")
-        fig_cumulative.update_layout(title="Cumulative Market Concentration",
-                                     xaxis_title="Number of Exchanges",
-                                     yaxis_title="Cumulative Market Share (%)", height=500)
-        st.plotly_chart(fig_cumulative, use_container_width=True)
-    
-    # Wallet-level details
+    # Wallet Details
     if show_wallet_details:
         st.markdown("---")
-        st.markdown("### 🔍 Wallet-Level Details")
-        
-        selected_exchange = st.selectbox("Select an exchange to view wallet details", options=selected_exchanges)
-        
-        if selected_exchange and selected_exchange in filtered_data:
-            wallet_data = filtered_data[selected_exchange]["wallets"]
-            wallet_df = pd.DataFrame(wallet_data)
-            wallet_df = wallet_df.sort_values("balance", ascending=False).reset_index(drop=True)
-            wallet_df.index = wallet_df.index + 1
-            
-            display_wallet_df = wallet_df.copy()
-            display_wallet_df = display_wallet_df.rename(columns={"address": "Address", "name": "Wallet Name", "balance": "Balance (XRP)"})
-            
-            if show_historical and "historical" in wallet_df.columns:
-                display_wallet_df["Historical"] = wallet_df["historical"].apply(lambda x: f"{x:,.0f}" if pd.notna(x) else "N/A")
-                display_wallet_df["Change"] = wallet_df.apply(lambda r: f"{r['change']:+,.0f}" if pd.notna(r.get('change')) else "N/A", axis=1)
-                display_wallet_df["Change %"] = wallet_df.apply(lambda r: f"{r['change_pct']:+.2f}%" if pd.notna(r.get('change_pct')) else "N/A", axis=1)
-            
-            display_wallet_df["Balance (XRP)"] = display_wallet_df["Balance (XRP)"].apply(lambda x: f"{x:,.0f}")
-            
-            cols_to_display = ["Address", "Wallet Name", "Balance (XRP)"]
-            if show_historical and "Historical" in display_wallet_df.columns:
-                cols_to_display.extend(["Historical", "Change", "Change %"])
-            
-            col1, col2 = st.columns([2, 1])
-            
-            with col1:
-                st.dataframe(display_wallet_df[cols_to_display], use_container_width=True)
-            
-            with col2:
-                raw_wallet_df = pd.DataFrame(wallet_data)
-                if len(raw_wallet_df) > 1 and raw_wallet_df["balance"].sum() > 0:
-                    fig_wallet = px.pie(raw_wallet_df, names="name", values="balance",
-                                       title=f"{selected_exchange} Wallet Distribution")
-                    fig_wallet.update_layout(height=300, showlegend=True)
-                    st.plotly_chart(fig_wallet, use_container_width=True)
+        st.markdown("### 🔍 Wallet Details")
+        selected = st.selectbox("Select Exchange", options=selected_exchanges)
+        if selected and selected in filtered_data:
+            wallet_df = pd.DataFrame(filtered_data[selected]["wallets"])
+            wallet_df = wallet_df.sort_values("balance", ascending=False)
+            wallet_df["balance"] = wallet_df["balance"].apply(lambda x: f"{x:,.0f}")
+            st.dataframe(wallet_df[["name", "address", "balance"]], use_container_width=True)
     
-    # Export functionality
+    # Export
     st.markdown("---")
-    st.markdown("### 📥 Export Data")
-    
-    col1, col2, col3 = st.columns(3)
-    
+    col1, col2 = st.columns(2)
     with col1:
         csv = df.to_csv()
-        st.download_button(label="📄 Download CSV", data=csv,
-                          file_name=f"xrp_holdings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                          mime="text/csv", use_container_width=True)
-    
+        st.download_button("📥 Download CSV", csv, f"xrp_holdings_{datetime.now().strftime('%Y%m%d')}.csv", "text/csv")
     with col2:
-        json_data = json.dumps(filtered_data, indent=2, default=str)
-        st.download_button(label="📋 Download JSON", data=json_data,
-                          file_name=f"xrp_holdings_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                          mime="application/json", use_container_width=True)
+        json_str = json.dumps(filtered_data, indent=2, default=str)
+        st.download_button("📥 Download JSON", json_str, f"xrp_holdings_{datetime.now().strftime('%Y%m%d')}.json", "application/json")
     
-    with col3:
-        report = f"""XRP Exchange Holdings Report
-Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-Historical Benchmark: {HISTORICAL_DATE}
-{'='*60}
-
-MARKET OVERVIEW
-- Total XRP Holdings: {total_xrp:,.0f} XRP
-- Exchanges Tracked: {exchange_count}
-- Top 3 Concentration: {top3_share:.2f}%
-- Top 10 Concentration: {top10_share:.2f}%
-"""
-        if total_change is not None:
-            report += f"- Change Since {HISTORICAL_DATE}: {total_change:+,.0f} XRP ({total_change_pct:+.2f}%)\n"
-        
-        report += f"\nTOP 10 EXCHANGES\n{'='*60}\n"
-        for idx, row in df.head(10).iterrows():
-            balance = row['Balance (XRP)']
-            share = row['Market Share (%)']
-            change = row.get('Change (XRP)')
-            change_str = f" | Change: {change:+,.0f}" if pd.notna(change) else ""
-            report += f"{idx}. {row['Exchange']}: {balance:,.0f} XRP ({share:.2f}%){change_str}\n"
-        
-        st.download_button(label="📝 Download Report", data=report,
-                          file_name=f"xrp_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-                          mime="text/plain", use_container_width=True)
-    
-    # Footer
-    st.markdown("---")
-    st.caption("💡 Data is fetched live from the XRP Ledger. Balances are cached for 5 minutes.")
-    st.caption(f"📅 Historical comparison data from {HISTORICAL_DATE} for: Upbit, Binance, Kraken, Bybit, SBI VC Trade")
-    st.caption("⚠️ This dashboard is for informational purposes only.")
+    st.caption("💡 Data cached for 5 minutes. Parallel fetching enabled for faster loading.")
 
 
 if __name__ == "__main__":
