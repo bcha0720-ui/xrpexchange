@@ -18,6 +18,28 @@ import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ============================================================================
+# ANALYTICS
+# ============================================================================
+
+def inject_analytics():
+    """Add Google Analytics and Umami Analytics"""
+    components.html("""
+        <!-- Google tag (gtag.js) -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=G-ESGLMXN5VE"></script>
+        <script>
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', 'G-ESGLMXN5VE');
+        </script>
+        
+        <!-- Umami Analytics -->
+        <script defer src="https://cloud.umami.is/script.js" 
+                data-website-id="44e180d6-aca4-4999-93a2-0761f227d90d"></script>
+    """, height=0)
+
+
+# ============================================================================
 # PAGE CONFIG (must be first)
 # ============================================================================
 
