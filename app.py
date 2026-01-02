@@ -659,6 +659,15 @@ def create_summary_dataframe(data: Dict) -> pd.DataFrame:
     df.index.name = "Rank"
     return df
 
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-ESGLMXN5VE"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-ESGLMXN5VE');
+</script>
 
 # ============================================================================
 # MAIN APP
